@@ -1,0 +1,6 @@
+{
+  "name": "Tixora — Event Ticketing & Check-In",
+  "description": "Production-oriented multi-organizer event ticketing web platform with digital QR tickets, mobile camera scanner, atomic check-in validation, and role-based dashboards.",
+  "requestFramePermissions": ["camera"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

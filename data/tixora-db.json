@@ -1,0 +1,77 @@
+{
+  "profiles": [
+    {
+      "id": "super-admin-anderson",
+      "fullName": "Anderson (Super Admin)",
+      "email": "anderson10.talenta@gmail.com",
+      "phone": "+6281234567890",
+      "avatarUrl": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80",
+      "isSuperAdmin": true,
+      "createdAt": "2026-10-01T00:00:00.000Z",
+      "organizerStatus": "approved"
+    }
+  ],
+  "organizations": [
+    {
+      "id": "04084065-6ac4-48a9-978f-36aaf4bb9cda",
+      "name": "Anderson (Super Admin)",
+      "slug": "anderson-super-admin",
+      "description": "Organisasi Penyelenggara Resmi Tixora",
+      "contactEmail": "anderson10.talenta@gmail.com",
+      "status": "active",
+      "createdBy": "super-admin-anderson",
+      "createdAt": "2026-10-21T16:40:27.270Z",
+      "updatedAt": "2026-10-21T16:40:27.270Z"
+    }
+  ],
+  "organizationMembers": [
+    {
+      "id": "6199741c-4fb5-47e2-a649-2ef1599d8ef3",
+      "organizationId": "04084065-6ac4-48a9-978f-36aaf4bb9cda",
+      "userId": "super-admin-anderson",
+      "role": "owner",
+      "status": "active",
+      "createdAt": "2026-10-21T16:40:27.270Z"
+    }
+  ],
+  "events": [],
+  "ticketTypes": [],
+  "orders": [],
+  "orderItems": [],
+  "registrations": [],
+  "tickets": [],
+  "payments": [],
+  "paymentWebhookEvents": [],
+  "eventStaffAssignments": [],
+  "checkInLogs": [],
+  "auditLogs": [
+    {
+      "id": "dccfcce5-d320-43a3-9856-1c5578f0c271",
+      "actorUserId": "super-admin-anderson",
+      "organizationId": "04084065-6ac4-48a9-978f-36aaf4bb9cda",
+      "action": "EVENT_DELETED",
+      "targetType": "event",
+      "targetId": "95c3836d-a221-4c15-8918-7ca46faaee51",
+      "metadata": {
+        "eventTitle": "Konser Musik Akustik Senja",
+        "deletedBy": "anderson10.talenta@gmail.com"
+      },
+      "createdAt": "2026-10-21T16:40:41.027Z"
+    },
+    {
+      "id": "adf4e7d3-355f-4bde-b6f7-5fc95455c5ac",
+      "actorUserId": "super-admin-anderson",
+      "organizationId": "04084065-6ac4-48a9-978f-36aaf4bb9cda",
+      "eventId": "95c3836d-a221-4c15-8918-7ca46faaee51",
+      "action": "EVENT_CREATED",
+      "targetType": "event",
+      "targetId": "95c3836d-a221-4c15-8918-7ca46faaee51",
+      "metadata": {
+        "title": "Konser Musik Akustik Senja"
+      },
+      "createdAt": "2026-10-21T16:40:27.270Z"
+    }
+  ],
+  "organizerApplications": [],
+  "rawTokens": []
+}

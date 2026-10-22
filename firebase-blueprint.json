@@ -1,0 +1,183 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile representation in Firestore",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "email": { "type": "string", "format": "email", "maxLength": 128 },
+        "fullName": { "type": "string", "maxLength": 100 },
+        "phone": { "type": "string", "maxLength": 30 },
+        "avatarUrl": { "type": "string", "maxLength": 500 },
+        "isSuperAdmin": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "email", "fullName", "createdAt"]
+    },
+    "Admin": {
+      "title": "Admin",
+      "description": "Super admin authorization record",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "email": { "type": "string", "format": "email", "maxLength": 128 },
+        "role": { "type": "string", "enum": ["super_admin"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "email", "role", "createdAt"]
+    },
+    "Event": {
+      "title": "Event",
+      "description": "Event listing with venue and schedule",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "organizationId": { "type": "string", "maxLength": 128 },
+        "title": { "type": "string", "maxLength": 150 },
+        "slug": { "type": "string", "maxLength": 150 },
+        "description": { "type": "string", "maxLength": 2000 },
+        "category": { "type": "string", "maxLength": 50 },
+        "bannerUrl": { "type": "string", "maxLength": 500 },
+        "venueName": { "type": "string", "maxLength": 150 },
+        "venueAddress": { "type": "string", "maxLength": 300 },
+        "startDate": { "type": "string", "format": "date-time" },
+        "endDate": { "type": "string", "format": "date-time" },
+        "status": { "type": "string", "enum": ["draft", "published", "ended", "cancelled"] },
+        "createdBy": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "title", "category", "startDate", "endDate", "status", "createdBy", "createdAt"]
+    },
+    "TicketType": {
+      "title": "TicketType",
+      "description": "Ticket category for an event with capacity limit",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "eventId": { "type": "string", "maxLength": 128 },
+        "name": { "type": "string", "maxLength": 100 },
+        "description": { "type": "string", "maxLength": 500 },
+        "priceMinor": { "type": "number" },
+        "capacity": { "type": "number" },
+        "soldCount": { "type": "number" },
+        "reservedCount": { "type": "number" },
+        "maxPerOrder": { "type": "number" },
+        "status": { "type": "string", "enum": ["active", "sold_out", "closed"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "eventId", "name", "priceMinor", "capacity", "soldCount", "status"]
+    },
+    "Order": {
+      "title": "Order",
+      "description": "Attendee booking transaction",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "orderNumber": { "type": "string", "maxLength": 50 },
+        "attendeeUserId": { "type": "string", "maxLength": 128 },
+        "attendeeEmail": { "type": "string", "format": "email", "maxLength": 128 },
+        "eventId": { "type": "string", "maxLength": 128 },
+        "ticketTypeId": { "type": "string", "maxLength": 128 },
+        "quantity": { "type": "number" },
+        "subtotalMinor": { "type": "number" },
+        "feesMinor": { "type": "number" },
+        "totalMinor": { "type": "number" },
+        "currency": { "type": "string", "maxLength": 10 },
+        "status": { "type": "string", "enum": ["pending", "confirmed", "expired", "cancelled"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "orderNumber", "attendeeUserId", "eventId", "totalMinor", "status", "createdAt"]
+    },
+    "Ticket": {
+      "title": "Ticket",
+      "description": "Attendee digital QR admission pass",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "orderId": { "type": "string", "maxLength": 128 },
+        "ticketNumber": { "type": "string", "maxLength": 50 },
+        "tokenHash": { "type": "string", "maxLength": 128 },
+        "rawToken": { "type": "string", "maxLength": 128 },
+        "eventId": { "type": "string", "maxLength": 128 },
+        "ticketTypeId": { "type": "string", "maxLength": 128 },
+        "attendeeUserId": { "type": "string", "maxLength": 128 },
+        "attendeeName": { "type": "string", "maxLength": 100 },
+        "attendeeEmail": { "type": "string", "format": "email", "maxLength": 128 },
+        "status": { "type": "string", "enum": ["valid", "used", "expired", "revoked"] },
+        "issuedAt": { "type": "string", "format": "date-time" },
+        "checkedInAt": { "type": "string", "format": "date-time" },
+        "checkedInBy": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "ticketNumber", "tokenHash", "eventId", "attendeeUserId", "status", "issuedAt"]
+    },
+    "EventStaffAssignment": {
+      "title": "EventStaffAssignment",
+      "description": "Staff granted gate check-in permissions by organizer via email",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "eventId": { "type": "string", "maxLength": 128 },
+        "email": { "type": "string", "format": "email", "maxLength": 128 },
+        "userId": { "type": "string", "maxLength": 128 },
+        "assignedBy": { "type": "string", "maxLength": 128 },
+        "status": { "type": "string", "enum": ["active", "revoked"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "eventId", "email", "assignedBy", "status", "createdAt"]
+    },
+    "CheckInLog": {
+      "title": "CheckInLog",
+      "description": "Audit record of gate scan attempts",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "eventId": { "type": "string", "maxLength": 128 },
+        "ticketId": { "type": "string", "maxLength": 128 },
+        "ticketNumber": { "type": "string", "maxLength": 50 },
+        "checkedInBy": { "type": "string", "maxLength": 128 },
+        "result": { "type": "string", "enum": ["success", "already_used", "expired", "event_mismatch", "invalid", "unauthorized"] },
+        "scannedAt": { "type": "string", "format": "date-time" },
+        "scannerMetadata": { "type": "string", "maxLength": 500 }
+      },
+      "required": ["id", "eventId", "checkedInBy", "result", "scannedAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/User" },
+      "description": "Registered user accounts and profiles"
+    },
+    "/admins/{adminId}": {
+      "schema": { "$ref": "#/entities/Admin" },
+      "description": "Super admin access records"
+    },
+    "/events/{eventId}": {
+      "schema": { "$ref": "#/entities/Event" },
+      "description": "Public and organizer events"
+    },
+    "/ticketTypes/{ticketTypeId}": {
+      "schema": { "$ref": "#/entities/TicketType" },
+      "description": "Ticket tiers and inventory capacities"
+    },
+    "/orders/{orderId}": {
+      "schema": { "$ref": "#/entities/Order" },
+      "description": "Attendee ticket order transactions"
+    },
+    "/tickets/{ticketId}": {
+      "schema": { "$ref": "#/entities/Ticket" },
+      "description": "Individual QR tickets issued to attendees"
+    },
+    "/staffAssignments/{assignmentId}": {
+      "schema": { "$ref": "#/entities/EventStaffAssignment" },
+      "description": "Event gate staff authorization invitations"
+    },
+    "/checkInLogs/{logId}": {
+      "schema": { "$ref": "#/entities/CheckInLog" },
+      "description": "Gate admission audit trail"
+    }
+  }
+}

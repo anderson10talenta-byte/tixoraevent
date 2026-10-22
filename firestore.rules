@@ -1,0 +1,119 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // --- GLOBAL DENY DEFAULT ---
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- REUSABLE SECURITY PRIMITIVES ---
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isSuperAdmin() {
+      return isSignedIn() && (
+        request.auth.token.email == 'anderson10.talenta@gmail.com' ||
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+      );
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // --- 1. USER PROFILES ---
+    match /users/{userId} {
+      allow get: if true;
+      allow list: if true;
+      allow create, update: if incoming().id is string
+        && incoming().email is string
+        && incoming().email.size() <= 128;
+      allow delete: if isSuperAdmin();
+    }
+
+    // --- 2. ADMIN ROSTER ---
+    match /admins/{adminId} {
+      allow read: if true;
+      allow write: if isSuperAdmin();
+    }
+
+    // --- 3. EVENTS ---
+    match /events/{eventId} {
+      allow get: if true;
+      allow list: if true;
+      allow create, update: if incoming().id is string
+        && incoming().title is string
+        && incoming().title.size() <= 150;
+      allow delete: if true;
+    }
+
+    // --- 4. TICKET TYPES ---
+    match /ticketTypes/{ticketTypeId} {
+      allow read: if true;
+      allow create, update: if incoming().id is string
+        && incoming().name is string
+        && incoming().priceMinor is number;
+      allow delete: if isSuperAdmin();
+    }
+
+    // --- 5. ORDERS ---
+    match /orders/{orderId} {
+      allow get, list: if true;
+      allow create, update: if incoming().id is string
+        && incoming().orderNumber is string;
+      allow delete: if isSuperAdmin();
+    }
+
+    // --- 6. TICKETS ---
+    match /tickets/{ticketId} {
+      allow get, list: if true;
+      allow create, update: if incoming().id is string
+        && incoming().ticketNumber is string;
+      allow delete: if isSuperAdmin();
+    }
+
+    // --- 7. GATE STAFF ASSIGNMENTS ---
+    match /staffAssignments/{assignmentId} {
+      allow read: if true;
+      allow create, update: if incoming().id is string
+        && incoming().eventId is string
+        && incoming().email is string
+        && incoming().email.size() <= 128
+        && incoming().status in ['active', 'revoked'];
+      allow delete: if true;
+    }
+
+    // --- 8. CHECK-IN LOGS ---
+    match /checkInLogs/{logId} {
+      allow read: if true;
+      allow create: if incoming().id is string
+        && incoming().eventId is string
+        && incoming().result is string;
+      allow delete: if isSuperAdmin();
+    }
+
+    // --- 9. ORGANIZATIONS ---
+    match /organizations/{orgId} {
+      allow read: if true;
+      allow create, update: if isSignedIn() || isSuperAdmin();
+      allow delete: if true;
+    }
+
+    // --- 10. ORGANIZER APPLICATIONS ---
+    match /organizerApplications/{appId} {
+      allow read: if isSignedIn() || isSuperAdmin();
+      allow create, update: if isSignedIn() || isSuperAdmin();
+      allow delete: if isSignedIn() || isSuperAdmin();
+    }
+  }
+}

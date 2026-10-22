@@ -1,0 +1,87 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
+  <defs>
+    <linearGradient id="tixoraGradFull" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#3830dc" />
+      <stop offset="50%" stop-color="#4d67f5" />
+      <stop offset="100%" stop-color="#5fa5f9" />
+    </linearGradient>
+    <filter id="shadowFull" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="6" stdDeviation="10" flood-color="#3830dc" flood-opacity="0.22" />
+    </filter>
+  </defs>
+
+  <!-- Ticket Emblem with "T" cutout and notches -->
+  <g transform="translate(256, 175) rotate(-22) translate(-170, -90)" filter="url(#shadowFull)">
+    <!-- Base Ticket Body with Rounded Corners and Side Notches -->
+    <path
+      d="M 30,0
+         H 310
+         A 30,30 0 0 1 340,30
+         V 60
+         A 24,24 0 0 0 340,108
+         V 150
+         A 30,30 0 0 1 310,180
+         H 30
+         A 30,30 0 0 1 0,150
+         V 108
+         A 24,24 0 0 0 0,60
+         V 30
+         A 30,30 0 0 1 30,0 Z"
+      fill="url(#tixoraGradFull)"
+    />
+
+    <!-- Stylized "T" Monogram Cutout -->
+    <path
+      d="M 68,48
+         H 272
+         A 14,14 0 0 1 286,62
+         V 80
+         A 14,14 0 0 1 272,94
+         H 194
+         V 180
+         H 146
+         V 94
+         H 68
+         A 14,14 0 0 1 54,80
+         V 62
+         A 14,14 0 0 1 68,48 Z"
+      fill="#ffffff"
+    />
+  </g>
+
+  <!-- QR Code Pattern Elements in Deep Navy -->
+  <g fill="#121b44" transform="translate(290, 215)">
+    <!-- Top-Left QR Marker Box -->
+    <rect x="0" y="0" width="34" height="34" rx="8" />
+    <rect x="8" y="8" width="18" height="18" rx="4" fill="#ffffff" />
+    <rect x="13" y="13" width="8" height="8" rx="2" fill="#121b44" />
+
+    <!-- Top-Right QR Marker Box -->
+    <rect x="42" y="0" width="34" height="34" rx="8" />
+    <rect x="50" y="8" width="18" height="18" rx="4" fill="#ffffff" />
+    <rect x="55" y="13" width="8" height="8" rx="2" fill="#121b44" />
+
+    <!-- Bottom-Left QR Marker Box -->
+    <rect x="0" y="42" width="34" height="34" rx="8" />
+    <rect x="8" y="50" width="18" height="18" rx="4" fill="#ffffff" />
+    <rect x="13" y="55" width="8" height="8" rx="2" fill="#121b44" />
+
+    <!-- Bottom-Right 4 Data Dots -->
+    <rect x="43" y="43" width="13" height="13" rx="3.5" />
+    <rect x="62" y="43" width="13" height="13" rx="3.5" />
+    <rect x="43" y="62" width="13" height="13" rx="3.5" />
+    <rect x="62" y="62" width="13" height="13" rx="3.5" />
+  </g>
+
+  <!-- Wordmark "Tixora" in Bold Geometric Typography -->
+  <text
+    x="256"
+    y="400"
+    text-anchor="middle"
+    fill="#121b44"
+    font-family="'Plus Jakarta Sans', system-ui, -apple-system, sans-serif"
+    font-weight="900"
+    font-size="88"
+    letter-spacing="-1.5"
+  >Tixora</text>
+</svg>
