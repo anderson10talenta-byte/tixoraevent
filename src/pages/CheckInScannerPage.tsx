@@ -159,8 +159,11 @@ export const CheckInScannerPage: React.FC<CheckInScannerPageProps> = ({ currentP
         setLastCheckInResult({
           result: 'invalid',
           allowed: false,
-          message: 'Pilih event terlebih dahulu sebelum memindai tiket.',
+          message: `Scanner berhasil membaca QR: "${token.slice(0, 35)}". Buat atau pilih event terlebih dahulu untuk mencocokkan tiket ke database.`,
         });
+        setTimeout(() => {
+          resultRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }, 100);
       }
       return;
     }
@@ -256,21 +259,25 @@ export const CheckInScannerPage: React.FC<CheckInScannerPageProps> = ({ currentP
           <div className="w-8 h-8 border-3 border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
           <p className="text-sm text-slate-500 font-medium">Memverifikasi penugasan staff...</p>
         </div>
-      ) : assignedEvents.length === 0 ? (
-        <div className="cartoon-card p-10 text-center bg-amber-50 space-y-3">
-          <div className="w-14 h-14 rounded-2xl bg-yellow-300 border-2.5 border-slate-900 mx-auto flex items-center justify-center shadow-[3px_3px_0px_0px_#0f172a] animate-bounce-pop">
-            <ShieldAlert className="w-7 h-7 text-rose-600" />
-          </div>
-          <h3 className="font-black text-slate-900 text-lg">Belum Ada Penugasan Event</h3>
-          <p className="text-xs font-bold text-slate-700 max-w-sm mx-auto leading-relaxed">
-            Akun Anda ({currentProfile?.email || 'Tamu'}) belum diberikan akses petugas check-in.
-            Organizer event dapat memberikan Anda izin lewat tab <strong>"Petugas Gerbang (Staff)"</strong> di Dashboard Organizer dengan memasukkan email Anda.
-          </p>
-        </div>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-          {/* Left Column: Camera Scanner & Live Validation Cards */}
-          <div className="lg:col-span-7 space-y-6">
+        <div className="space-y-6">
+          {assignedEvents.length === 0 && (
+            <div className="cartoon-card p-4 bg-amber-50 border-2.5 border-slate-900 rounded-2xl flex items-center gap-3 shadow-[3px_3px_0px_0px_#0f172a]">
+              <div className="w-10 h-10 rounded-xl bg-yellow-300 border-2 border-slate-900 flex items-center justify-center shrink-0">
+                <ShieldAlert className="w-5 h-5 text-slate-900" />
+              </div>
+              <div className="text-xs">
+                <span className="font-black text-slate-900 block">Mode Uji Scanner Kamera</span>
+                <span className="text-slate-600 font-bold">
+                  Belum ada event terdaftar. Anda dapat langsung menguji scanner kamera di bawah ini untuk memastikan kamera dan pemindaian barcode QR berfungsi normal.
+                </span>
+              </div>
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+            {/* Left Column: Camera Scanner & Live Validation Cards */}
+            <div className="lg:col-span-7 space-y-6">
             {/* Live Stats Pill */}
             {stats && (
               <div className="grid grid-cols-3 gap-3 p-4 bg-white rounded-2xl border border-slate-200 shadow-xs text-center">
@@ -407,6 +414,7 @@ export const CheckInScannerPage: React.FC<CheckInScannerPageProps> = ({ currentP
               )}
             </div>
           </div>
+        </div>
         </div>
       )}
     </div>

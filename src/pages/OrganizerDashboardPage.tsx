@@ -13,6 +13,13 @@ import {
   CheckCircle,
   FileSpreadsheet,
   Trash2,
+  Check,
+  X,
+  Eye,
+  ShieldCheck,
+  AlertCircle,
+  Clock,
+  CreditCard,
 } from 'lucide-react';
 import { formatCurrencyIDR } from '../lib/capacity';
 import { StatusBadge } from '../components/StatusBadge';
@@ -33,7 +40,7 @@ export const OrganizerDashboardPage: React.FC<OrganizerDashboardPageProps> = ({
   onNavigateNewEvent,
   onViewEventPublic,
 }) => {
-  const [activeTab, setActiveTab] = useState<'events' | 'registrants' | 'staff' | 'reports'>('events');
+  const [activeTab, setActiveTab] = useState<'events' | 'registrants' | 'orders' | 'staff' | 'reports'>('events');
   const [events, setEvents] = useState<any[]>([]);
   const [selectedEventId, setSelectedEventId] = useState<string>('');
   const [registrants, setRegistrants] = useState<any[]>([]);
@@ -43,6 +50,14 @@ export const OrganizerDashboardPage: React.FC<OrganizerDashboardPageProps> = ({
   const [searchRegistrant, setSearchRegistrant] = useState('');
   const [newStaffEmail, setNewStaffEmail] = useState('');
   const [staffAssignMessage, setStaffAssignMessage] = useState<string | null>(null);
+
+  // Orders & Payment Verification state
+  const [orders, setOrders] = useState<any[]>([]);
+  const [ordersLoading, setOrdersLoading] = useState(false);
+  const [previewProofUrl, setPreviewProofUrl] = useState<string | null>(null);
+  const [rejectingOrderId, setRejectingOrderId] = useState<string | null>(null);
+  const [rejectingOrderReason, setRejectingOrderReason] = useState<string>('');
+  const [verifyActionLoading, setVerifyActionLoading] = useState(false);
 
   // KYC Verification state
   const [organizerStatus, setOrganizerStatus] = useState<OrganizerVerificationStatus>('not_applied');
@@ -158,6 +173,65 @@ export const OrganizerDashboardPage: React.FC<OrganizerDashboardPageProps> = ({
     }
   };
 
+  const fetchOrders = async (eventId?: string) => {
+    setOrdersLoading(true);
+    try {
+      const url = eventId ? `/api/admin/orders?eventId=${eventId}` : '/api/admin/orders';
+      const res = await fetch(url, {
+        headers: {
+          'x-user-id': currentProfile?.id || '',
+          'x-user-email': currentProfile?.email || '',
+          'x-user-name': currentProfile?.fullName || '',
+        },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setOrders(data);
+      }
+    } catch (err) {
+      console.error('Failed to load orders:', err);
+    } finally {
+      setOrdersLoading(false);
+    }
+  };
+
+  const handleVerifyOrderPayment = async (orderId: string, action: 'approve' | 'reject') => {
+    setVerifyActionLoading(true);
+    try {
+      const res = await fetch(`/api/admin/orders/${orderId}/verify-payment`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-id': currentProfile?.id || '',
+          'x-user-email': currentProfile?.email || '',
+          'x-user-name': currentProfile?.fullName || '',
+        },
+        body: JSON.stringify({
+          action,
+          rejectionReason: action === 'reject' ? rejectingOrderReason : undefined,
+        }),
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        if (action === 'approve') {
+          confetti({ particleCount: 70, spread: 60, origin: { y: 0.6 } });
+        }
+        setRejectingOrderId(null);
+        setRejectingOrderReason('');
+        fetchOrders(selectedEventId);
+        fetchOrganizerEvents();
+      } else {
+        alert(data.error || 'Gagal memproses pembayaran');
+      }
+    } catch (err) {
+      console.error('Verify payment error:', err);
+      alert('Terjadi kesalahan saat memverifikasi pembayaran');
+    } finally {
+      setVerifyActionLoading(false);
+    }
+  };
+
   const checkKycStatus = async () => {
     if (!currentProfile) {
       setCheckingKyc(false);
@@ -194,11 +268,13 @@ export const OrganizerDashboardPage: React.FC<OrganizerDashboardPageProps> = ({
   useEffect(() => {
     checkKycStatus();
     fetchOrganizerEvents();
+    fetchOrders();
   }, [currentProfile]);
 
   useEffect(() => {
     if (selectedEventId) {
       if (activeTab === 'registrants') fetchRegistrants(selectedEventId);
+      if (activeTab === 'orders') fetchOrders(selectedEventId);
       if (activeTab === 'staff') fetchStaff(selectedEventId);
       if (activeTab === 'reports') fetchReports(selectedEventId);
     }
@@ -313,8 +389,9 @@ export const OrganizerDashboardPage: React.FC<OrganizerDashboardPageProps> = ({
             <span className="text-xs font-bold uppercase tracking-wider text-indigo-600">
               Portal Penyelenggara Acara (Organizer)
             </span>
-            <span className="text-[11px] font-bold text-indigo-700 bg-indigo-50 px-2.5 py-0.5 rounded-full border border-indigo-200">
-              🗓️ Hari ke-{daysActive} Menggunakan Tixora
+            <span className="inline-flex items-center gap-1.5 text-[11px] font-bold text-indigo-700 bg-indigo-50 px-2.5 py-0.5 rounded-full border border-indigo-200">
+              <Calendar className="w-3.5 h-3.5 text-indigo-600" />
+              <span>Hari ke-{daysActive} Menggunakan Tixora</span>
             </span>
           </div>
           <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
@@ -393,6 +470,21 @@ export const OrganizerDashboardPage: React.FC<OrganizerDashboardPageProps> = ({
           }`}
         >
           Registran & Tamu
+        </button>
+        <button
+          onClick={() => setActiveTab('orders')}
+          className={`px-4 py-2.5 text-sm font-semibold border-b-2 transition cursor-pointer flex items-center gap-1.5 ${
+            activeTab === 'orders'
+              ? 'border-indigo-600 text-indigo-600'
+              : 'border-transparent text-slate-600 hover:text-slate-900'
+          }`}
+        >
+          <span>Verifikasi QRIS</span>
+          {orders.filter((o) => o.status === 'awaiting_approval').length > 0 && (
+            <span className="px-2 py-0.5 text-[10px] font-black bg-amber-500 text-white rounded-full animate-pulse">
+              {orders.filter((o) => o.status === 'awaiting_approval').length} Baru
+            </span>
+          )}
         </button>
         <button
           onClick={() => setActiveTab('staff')}
@@ -605,6 +697,165 @@ export const OrganizerDashboardPage: React.FC<OrganizerDashboardPageProps> = ({
         </div>
       )}
 
+      {/* Tab: Orders & QRIS Payment Verification */}
+      {activeTab === 'orders' && (
+        <div className="space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
+            <div>
+              <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                <ShieldCheck className="w-5 h-5 text-indigo-600" />
+                <span>Persetujuan Pembayaran QRIS Masuk</span>
+              </h2>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Verifikasi screenshot bukti transfer sebelum tiket digital dan barcode QR resmi diterbitkan ke pengunjung.
+              </p>
+            </div>
+            <button
+              onClick={() => fetchOrders(selectedEventId)}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition self-start sm:self-auto cursor-pointer"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${ordersLoading ? 'animate-spin' : ''}`} />
+              <span>Muat Ulang</span>
+            </button>
+          </div>
+
+          {orders.length === 0 ? (
+            <div className="p-12 text-center bg-white rounded-3xl border border-slate-200 space-y-2">
+              <div className="w-12 h-12 rounded-2xl bg-indigo-50 border border-indigo-100 flex items-center justify-center mx-auto text-indigo-600">
+                <CreditCard className="w-6 h-6" />
+              </div>
+              <p className="text-base font-bold text-slate-900">Belum Ada Transaksi Pemesanan</p>
+              <p className="text-xs text-slate-500 max-w-sm mx-auto">
+                Pemesanan tiket berbayar dengan metode QRIS akan muncul di sini untuk diperiksa bukti transfernya.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {orders.map((o) => {
+                const isPending = o.status === 'awaiting_approval';
+                const isConfirmed = o.status === 'confirmed';
+                const isRejected = o.status === 'rejected';
+
+                return (
+                  <div
+                    key={o.id}
+                    className={`p-5 bg-white rounded-2xl border transition shadow-xs space-y-4 ${
+                      isPending
+                        ? 'border-amber-300 ring-2 ring-amber-400/20 bg-amber-50/20'
+                        : 'border-slate-200'
+                    }`}
+                  >
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-mono font-bold text-slate-900 text-sm">
+                            {o.orderNumber}
+                          </span>
+                          <span className="text-xs text-slate-400 font-semibold">•</span>
+                          <span className="text-xs font-bold text-indigo-700 bg-indigo-50 px-2.5 py-0.5 rounded-md border border-indigo-200">
+                            {o.ticketTypeName} × {o.quantity}
+                          </span>
+                          {isPending && (
+                            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 text-amber-800 border border-amber-300 flex items-center gap-1">
+                              <Clock className="w-3 h-3 text-amber-600" />
+                              <span>Menunggu Verifikasi Bukti</span>
+                            </span>
+                          )}
+                          {isConfirmed && (
+                            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                              ✓ Lunas & Tiket Terbit
+                            </span>
+                          )}
+                          {isRejected && (
+                            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-rose-100 text-rose-800 border border-rose-300">
+                              ✕ Ditolak
+                            </span>
+                          )}
+                        </div>
+                        <span className="text-xs text-slate-500 block mt-1">
+                          Pembeli: <span className="text-slate-800 font-semibold">{o.buyerName}</span> ({o.buyerEmail} • {o.buyerPhone}) • Diajukan: {new Date(o.createdAt).toLocaleString('id-ID')}
+                        </span>
+                      </div>
+
+                      {isPending && (
+                        <div className="flex items-center gap-2">
+                          <button
+                            disabled={verifyActionLoading}
+                            onClick={() => handleVerifyOrderPayment(o.id, 'approve')}
+                            className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-xs disabled:opacity-50"
+                          >
+                            <Check className="w-4 h-4" />
+                            <span>Setujui Pembayaran</span>
+                          </button>
+                          <button
+                            disabled={verifyActionLoading}
+                            onClick={() => setRejectingOrderId(o.id)}
+                            className="px-4 py-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-bold flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                          >
+                            <X className="w-4 h-4" />
+                            <span>Tolak</span>
+                          </button>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Order Details & Proof Thumbnail */}
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-3.5 bg-slate-50 rounded-xl border border-slate-200 text-xs">
+                      <div>
+                        <span className="text-[10px] uppercase font-bold text-slate-400 block">Total Nominal</span>
+                        <span className="text-lg font-bold text-indigo-600">{formatCurrencyIDR(o.totalMinor || 0)}</span>
+                        <span className="text-[11px] text-slate-500 block mt-0.5">
+                          Metode: {o.paymentMethod || 'QRIS GoPay'}
+                        </span>
+                      </div>
+
+                      <div>
+                        <span className="text-[10px] uppercase font-bold text-slate-400 block">Identitas Pengirim Transfer</span>
+                        <span className="font-semibold text-slate-800">{o.senderName || o.buyerName || '-'}</span>
+                        <span className="text-slate-500 block text-[11px]">Bank/App: {o.senderBank || 'QRIS'}</span>
+                        {o.paymentNotes && (
+                          <span className="text-slate-500 italic block text-[11px] mt-0.5">"{o.paymentNotes}"</span>
+                        )}
+                      </div>
+
+                      <div>
+                        <span className="text-[10px] uppercase font-bold text-slate-400 block mb-1">Bukti Screenshot Pembayaran</span>
+                        {o.paymentProofUrl ? (
+                          <div className="flex items-center gap-2">
+                            <img
+                              src={o.paymentProofUrl}
+                              alt="Bukti Transfer"
+                              onClick={() => setPreviewProofUrl(o.paymentProofUrl)}
+                              className="w-14 h-14 object-cover rounded-xl border border-slate-300 cursor-pointer hover:opacity-80 transition shadow-xs"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setPreviewProofUrl(o.paymentProofUrl)}
+                              className="text-xs font-bold text-indigo-600 hover:underline flex items-center gap-1 cursor-pointer"
+                            >
+                              <Eye className="w-3.5 h-3.5" />
+                              <span>Lihat Bukti Foto</span>
+                            </button>
+                          </div>
+                        ) : (
+                          <span className="text-slate-400 italic">Belum mengunggah bukti transfer</span>
+                        )}
+                      </div>
+                    </div>
+
+                    {isRejected && o.rejectionReason && (
+                      <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-700 text-xs font-medium">
+                        Alasan Penolakan: {o.rejectionReason}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Tab 3: Staff Assignment */}
       {activeTab === 'staff' && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -736,8 +987,8 @@ export const OrganizerDashboardPage: React.FC<OrganizerDashboardPageProps> = ({
 
       {/* Delete Event Confirmation Modal */}
       {deletingEvent && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-sm animate-in fade-in">
-          <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-md w-full space-y-4 shadow-xl border border-slate-200">
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/80 backdrop-blur-sm p-4 flex min-h-full items-start sm:items-center justify-center animate-in fade-in">
+          <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-md w-full my-auto space-y-4 shadow-xl border border-slate-200">
             <div className="w-14 h-14 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center mx-auto">
               <Trash2 className="w-7 h-7" />
             </div>
@@ -762,6 +1013,92 @@ export const OrganizerDashboardPage: React.FC<OrganizerDashboardPageProps> = ({
                 disabled={deleteLoading}
                 onClick={() => setDeletingEvent(null)}
                 className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs rounded-xl transition cursor-pointer"
+              >
+                Batal
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* FULLSCREEN PREVIEW MODAL FOR PAYMENT PROOF */}
+      {previewProofUrl && (
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/85 backdrop-blur-sm p-4 flex min-h-full items-start sm:items-center justify-center animate-in fade-in">
+          <div className="bg-white rounded-3xl max-w-2xl w-full my-auto p-6 space-y-4 shadow-2xl animate-in zoom-in-95 max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between border-b pb-3 border-slate-200">
+              <div className="flex items-center gap-2">
+                <Eye className="w-5 h-5 text-indigo-600" />
+                <h3 className="font-bold text-slate-900 text-base">Bukti Screenshot Transfer Pembeli</h3>
+              </div>
+              <button
+                onClick={() => setPreviewProofUrl(null)}
+                className="p-1.5 rounded-full hover:bg-slate-100 text-slate-500 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="overflow-auto flex-1 flex items-center justify-center bg-slate-900/5 rounded-2xl p-2 min-h-[300px]">
+              <img
+                src={previewProofUrl}
+                alt="Screenshot Bukti Pembayaran"
+                className="max-h-[65vh] w-auto max-w-full object-contain rounded-xl shadow-md border border-slate-200"
+              />
+            </div>
+            <div className="flex justify-end pt-2">
+              <button
+                onClick={() => setPreviewProofUrl(null)}
+                className="px-5 py-2.5 bg-slate-900 text-white rounded-xl text-xs font-bold hover:bg-slate-800 cursor-pointer"
+              >
+                Tutup Preview
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* REJECT ORDER REASON MODAL */}
+      {rejectingOrderId && (
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/80 backdrop-blur-sm p-4 flex min-h-full items-start sm:items-center justify-center animate-in fade-in">
+          <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-md w-full my-auto space-y-4 shadow-2xl animate-in zoom-in-95 border border-slate-200">
+            <div className="w-12 h-12 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center mx-auto">
+              <AlertCircle className="w-6 h-6" />
+            </div>
+
+            <div className="text-center space-y-1">
+              <h3 className="text-lg font-bold text-slate-900">Tolak Pembayaran Pesanan?</h3>
+              <p className="text-xs text-slate-500">
+                Tiket tidak akan diterbitkan dan pemesanan akan ditandai ditolak.
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-slate-700 block">
+                Alasan Penolakan (akan dilihat pembeli):
+              </label>
+              <textarea
+                rows={3}
+                placeholder="Contoh: Nominal transfer kurang, screenshot terpotong, atau dana belum masuk rekening..."
+                value={rejectingOrderReason}
+                onChange={(e) => setRejectingOrderReason(e.target.value)}
+                className="w-full p-3 text-xs rounded-xl border border-slate-300 focus:outline-hidden focus:ring-2 focus:ring-rose-500"
+              />
+            </div>
+
+            <div className="flex gap-2.5 pt-2">
+              <button
+                disabled={verifyActionLoading}
+                onClick={() => handleVerifyOrderPayment(rejectingOrderId, 'reject')}
+                className="flex-1 py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-xl cursor-pointer disabled:opacity-50"
+              >
+                {verifyActionLoading ? 'Memproses...' : 'Tolak Pembayaran'}
+              </button>
+              <button
+                disabled={verifyActionLoading}
+                onClick={() => {
+                  setRejectingOrderId(null);
+                  setRejectingOrderReason('');
+                }}
+                className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl cursor-pointer"
               >
                 Batal
               </button>

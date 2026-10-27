@@ -19,7 +19,7 @@ export const checkInRequestSchema = z.object({
 export const createEventSchema = z.object({
   title: z.string().min(3, 'Judul event minimal 3 karakter').max(120),
   description: z.string().min(10, 'Deskripsi event minimal 10 karakter'),
-  category: z.enum(['music', 'technology', 'business', 'food', 'art', 'community']),
+  category: z.string().min(1, 'Kategori event wajib dipilih'),
   venueName: z.string().min(2, 'Nama venue wajib diisi'),
   venueAddress: z.string().min(5, 'Alamat venue wajib diisi'),
   coverImageUrl: z.string().optional().or(z.literal('')),

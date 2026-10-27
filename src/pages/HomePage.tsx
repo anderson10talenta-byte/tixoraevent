@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
-import { Search, Sparkles, ShieldCheck, QrCode, ArrowRight, Zap, Users, PartyPopper, Calendar } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Search, Sparkles, ShieldCheck, QrCode, ArrowRight, Zap, Users, PartyPopper, Calendar, Tag } from 'lucide-react';
 import { EventCard } from '../components/EventCard';
-import type { Event, TicketType } from '../lib/types';
+import type { Event, TicketType, EventCategory } from '../lib/types';
+import { DEFAULT_CATEGORIES, getCategoryIcon } from '../lib/categoryIcons';
 
 interface EventWithDetails extends Event {
   organizationName?: string;
@@ -18,24 +19,32 @@ interface HomePageProps {
 export const HomePage: React.FC<HomePageProps> = ({ events, onSelectEvent, onExploreAll }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [categories, setCategories] = useState<EventCategory[]>(DEFAULT_CATEGORIES);
 
-  const categories = [
-    { id: 'all', label: '🌈 Semua Kategori' },
-    { id: 'music', label: '🎵 Konser & Musik' },
-    { id: 'technology', label: '🤖 Teknologi & AI' },
-    { id: 'art', label: '🎨 Seni & Hiburan Kreatif' },
-    { id: 'food', label: '🍔 Kuliner Enak' },
-  ];
+  useEffect(() => {
+    fetch('/api/categories')
+      .then((res) => (res.ok ? res.json() : []))
+      .then((data) => {
+        if (data && data.length > 0) {
+          setCategories(data);
+        }
+      })
+      .catch((err) => console.error('Failed to load categories:', err));
+  }, []);
 
-  const filteredEvents = events.filter((e) => {
+  // Filter out completed/ended events from homepage discovery
+  const activeEvents = events.filter((e) => {
+    if (e.isCompleted || (e as any).status === 'completed') return false;
+    if (e.endsAt && new Date(e.endsAt).getTime() < Date.now()) return false;
+    return true;
+  });
+
+  const filteredEvents = activeEvents.filter((e) => {
     const cat = (e.category || '').toLowerCase();
     const matchesCategory =
       selectedCategory === 'all' ||
       cat === selectedCategory.toLowerCase() ||
-      (selectedCategory === 'music' && (cat.includes('music') || cat.includes('musik'))) ||
-      (selectedCategory === 'technology' && (cat.includes('tech') || cat.includes('teknologi') || cat.includes('sains') || cat.includes('ai'))) ||
-      (selectedCategory === 'art' && (cat.includes('art') || cat.includes('seni') || cat.includes('kreatif') || cat.includes('animasi'))) ||
-      (selectedCategory === 'food' && (cat.includes('food') || cat.includes('kuliner') || cat.includes('kopi')));
+      cat.includes(selectedCategory.toLowerCase());
 
     const q = searchQuery.toLowerCase().trim();
     const matchesSearch =
@@ -90,7 +99,7 @@ export const HomePage: React.FC<HomePageProps> = ({ events, onSelectEvent, onExp
               onClick={onExploreAll}
               className="cartoon-btn px-6 py-2.5 bg-indigo-500 hover:bg-indigo-600 text-white text-xs sm:text-sm font-black rounded-xl transition"
             >
-              Cari Event 🚀
+              Cari Event
             </button>
           </div>
         </div>
@@ -141,7 +150,7 @@ export const HomePage: React.FC<HomePageProps> = ({ events, onSelectEvent, onExp
           <div>
             <div className="flex items-center gap-2">
               <span className="text-2xl font-black text-slate-900 tracking-tight">
-                🎪 Event Pilihan Terpopuler
+                Event Pilihan Terpopuler
               </span>
               <span className="cartoon-badge px-2.5 py-0.5 rounded-full text-[11px] font-black bg-rose-400 text-white">
                 Live
@@ -152,21 +161,37 @@ export const HomePage: React.FC<HomePageProps> = ({ events, onSelectEvent, onExp
             </p>
           </div>
 
-          {/* Cartoon Category Badges */}
+          {/* Category Badges with Lucide Icons */}
           <div className="flex flex-wrap gap-2">
-            {categories.map((cat) => (
-              <button
-                key={cat.id}
-                onClick={() => setSelectedCategory(cat.id)}
-                className={`px-3 py-1.5 rounded-xl text-xs font-black transition cursor-pointer ${
-                  selectedCategory === cat.id
-                    ? 'bg-yellow-300 text-slate-900 border-2 border-slate-900 shadow-[2.5px_2.5px_0px_0px_#0f172a] -translate-y-0.5'
-                    : 'bg-white text-slate-700 hover:bg-slate-100 border-2 border-slate-300'
-                }`}
-              >
-                {cat.label}
-              </button>
-            ))}
+            <button
+              onClick={() => setSelectedCategory('all')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-black transition cursor-pointer flex items-center gap-1.5 ${
+                selectedCategory === 'all'
+                  ? 'bg-yellow-300 text-slate-900 border-2 border-slate-900 shadow-[2.5px_2.5px_0px_0px_#0f172a] -translate-y-0.5'
+                  : 'bg-white text-slate-700 hover:bg-slate-100 border-2 border-slate-300'
+              }`}
+            >
+              <Tag className="w-3.5 h-3.5" />
+              <span>Semua Kategori</span>
+            </button>
+            {categories.map((cat) => {
+              const IconComp = getCategoryIcon(cat.iconName);
+              const isSelected = selectedCategory === cat.id;
+              return (
+                <button
+                  key={cat.id}
+                  onClick={() => setSelectedCategory(cat.id)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-black transition cursor-pointer flex items-center gap-1.5 ${
+                    isSelected
+                      ? 'bg-yellow-300 text-slate-900 border-2 border-slate-900 shadow-[2.5px_2.5px_0px_0px_#0f172a] -translate-y-0.5'
+                      : 'bg-white text-slate-700 hover:bg-slate-100 border-2 border-slate-300'
+                  }`}
+                >
+                  <IconComp className="w-3.5 h-3.5" />
+                  <span>{cat.name}</span>
+                </button>
+              );
+            })}
           </div>
         </div>
 
@@ -191,7 +216,9 @@ export const HomePage: React.FC<HomePageProps> = ({ events, onSelectEvent, onExp
           </div>
         ) : (
           <div className="cartoon-card p-12 text-center bg-white space-y-3">
-            <span className="text-4xl block">🔍</span>
+            <div className="w-14 h-14 rounded-2xl bg-amber-100 border-2 border-slate-900 text-indigo-700 flex items-center justify-center mx-auto shadow-[2px_2px_0px_0px_#0f172a]">
+              <Search className="w-7 h-7" />
+            </div>
             <p className="text-base font-black text-slate-900">Event tidak ditemukan</p>
             <p className="text-xs text-slate-600 font-bold max-w-sm mx-auto">
               Tidak ada event yang cocok dengan filter atau pencarian Anda saat ini.

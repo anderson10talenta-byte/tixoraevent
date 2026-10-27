@@ -18,6 +18,7 @@ import type { Profile } from '../lib/types';
 import { SUPER_ADMIN_EMAIL } from '../lib/firebase';
 import { DownloadAppModal } from './DownloadAppModal';
 import { TixoraLogo } from './TixoraLogo';
+import { CreditScoreBadge } from './CreditScoreBadge';
 
 interface NavbarProps {
   currentProfile: Profile | null;
@@ -136,53 +137,67 @@ export const Navbar: React.FC<NavbarProps> = ({
 
               {/* User Profile or Sign In */}
               {currentProfile ? (
-                <div className="relative">
-                  <button
-                    onClick={() => setProfileDropdownOpen(!profileDropdownOpen)}
-                    className="flex items-center gap-2 p-1.5 pr-3 rounded-2xl bg-white border-2 border-slate-900 shadow-[2.5px_2.5px_0px_0px_#0f172a] hover:bg-slate-50 transition cursor-pointer"
-                  >
-                    <img
-                      src={
-                        currentProfile.avatarUrl ||
-                        `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(
-                          currentProfile.fullName
-                        )}`
-                      }
-                      alt={currentProfile.fullName}
-                      className="w-8 h-8 rounded-xl object-cover border border-slate-900 bg-amber-100"
-                    />
-                    <div className="text-left hidden sm:block">
-                      <div className="font-black text-xs text-slate-900 leading-tight max-w-[110px] truncate">
-                        {currentProfile.fullName}
-                      </div>
-                      <div className="text-[10px] font-bold text-indigo-600 flex items-center gap-1">
-                        {currentProfile.isSuperAdmin ? '⭐ Super Admin' : '🎟️ Pengguna'}
-                      </div>
-                    </div>
-                    <ChevronDown className="w-4 h-4 text-slate-600" />
-                  </button>
-
-                  {/* Dropdown Menu */}
-                  {profileDropdownOpen && (
-                    <div className="absolute right-0 mt-2 w-72 bg-white border-2.5 border-slate-900 rounded-2xl shadow-[4px_4px_0px_0px_#0f172a] p-3 space-y-2 z-50 animate-in fade-in zoom-in-95">
-                      <div className="p-3 bg-amber-50 rounded-xl border border-slate-900/10 mb-2">
-                        <div className="font-black text-sm text-slate-900">{currentProfile.fullName}</div>
-                        <div className="text-xs text-slate-500 font-mono truncate">{currentProfile.email}</div>
-                        <div className="mt-1.5 flex items-center justify-between gap-1.5 flex-wrap">
+                <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+                  <CreditScoreBadge currentProfile={currentProfile} />
+                  <div className="relative shrink-0">
+                    <button
+                      onClick={() => setProfileDropdownOpen(!profileDropdownOpen)}
+                      className="flex items-center gap-1 sm:gap-2 p-1 sm:p-1.5 sm:pr-3 rounded-xl sm:rounded-2xl bg-white border-2 border-slate-900 shadow-[1.5px_1.5px_0px_0px_#0f172a] sm:shadow-[2.5px_2.5px_0px_0px_#0f172a] hover:bg-slate-50 transition cursor-pointer shrink-0"
+                    >
+                      <img
+                        src={
+                          currentProfile.avatarUrl ||
+                          `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(
+                            currentProfile.fullName
+                          )}`
+                        }
+                        alt={currentProfile.fullName}
+                        className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl object-cover border border-slate-900 bg-amber-100 shrink-0"
+                      />
+                      <div className="text-left hidden sm:block">
+                        <div className="font-black text-xs text-slate-900 leading-tight max-w-[110px] truncate">
+                          {currentProfile.fullName}
+                        </div>
+                        <div className="text-[10px] font-bold text-indigo-600 flex items-center gap-1">
                           {currentProfile.isSuperAdmin ? (
-                            <span className="px-2 py-0.5 text-[10px] font-black bg-rose-200 text-rose-900 border border-rose-900 rounded-md">
-                              ⭐ Super Admin
+                            <span className="flex items-center gap-0.5 text-rose-600">
+                              <Shield className="w-3 h-3" />
+                              <span>Super Admin</span>
                             </span>
                           ) : (
-                            <span className="px-2 py-0.5 text-[10px] font-black bg-emerald-200 text-emerald-900 border border-emerald-900 rounded-md">
-                              Pengguna Terverifikasi
+                            <span className="flex items-center gap-0.5 text-slate-600">
+                              <UserIcon className="w-3 h-3" />
+                              <span>Pengguna</span>
                             </span>
                           )}
-                          <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-200">
-                            🗓️ Hari ke-{calculateDaysActive(currentProfile.createdAt)} Aktif
-                          </span>
                         </div>
                       </div>
+                      <ChevronDown className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-slate-600 shrink-0" />
+                    </button>
+
+                    {/* Dropdown Menu */}
+                    {profileDropdownOpen && (
+                      <div className="absolute right-0 mt-2 w-72 max-w-[calc(100vw-24px)] bg-white border-2.5 border-slate-900 rounded-2xl shadow-[4px_4px_0px_0px_#0f172a] p-3 space-y-2 z-50 animate-in fade-in zoom-in-95">
+                        <div className="p-3 bg-amber-50 rounded-xl border border-slate-900/10 mb-2">
+                          <div className="font-black text-sm text-slate-900">{currentProfile.fullName}</div>
+                          <div className="text-xs text-slate-500 font-mono truncate">{currentProfile.email}</div>
+                          <div className="mt-1.5 flex items-center justify-between gap-1.5 flex-wrap">
+                            {currentProfile.isSuperAdmin ? (
+                              <span className="px-2 py-0.5 text-[10px] font-black bg-rose-200 text-rose-900 border border-rose-900 rounded-md flex items-center gap-1">
+                                <Shield className="w-3 h-3" />
+                                <span>Super Admin</span>
+                              </span>
+                            ) : (
+                              <span className="px-2 py-0.5 text-[10px] font-black bg-emerald-200 text-emerald-900 border border-emerald-900 rounded-md">
+                                Pengguna Terverifikasi
+                              </span>
+                            )}
+                            <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-200 inline-flex items-center gap-1">
+                              <Calendar className="w-3 h-3 text-indigo-700" />
+                              <span>Hari ke-{calculateDaysActive(currentProfile.createdAt)} Aktif</span>
+                            </span>
+                          </div>
+                        </div>
 
                       <button
                         onClick={() => handleNav('my-tickets')}
@@ -236,6 +251,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                     </div>
                   )}
                 </div>
+              </div>
               ) : (
                 <div className="flex items-center gap-2">
                   <button

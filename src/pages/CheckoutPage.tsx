@@ -15,6 +15,9 @@ import {
   FileText,
   Sparkles,
   Smartphone,
+  Camera,
+  Image as ImageIcon,
+  Ticket,
 } from 'lucide-react';
 import { formatCurrencyIDR } from '../lib/capacity';
 import type { Event, TicketType, Profile } from '../lib/types';
@@ -56,6 +59,7 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
   const [paymentNotes, setPaymentNotes] = useState('');
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const cameraInputRef = useRef<HTMLInputElement | null>(null);
 
   // Copy helpers
   const [copiedNominal, setCopiedNominal] = useState(false);
@@ -63,8 +67,9 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
 
   const subtotalMinor = ticketType.priceMinor * quantity;
   const isFree = subtotalMinor === 0;
-  const feesMinor = isFree ? 0 : 5000;
-  const totalMinor = subtotalMinor + feesMinor;
+  // Zero tax & zero platform fees: pure ticket price
+  const feesMinor = 0;
+  const totalMinor = subtotalMinor;
 
   // The official GoPay Merchant QRIS asset path
   const QRIS_IMAGE_PATH = '/assets/aistudio/WhatsApp_Image_2026-10-21_at_23.48.01_840ca9f1.jpeg';
@@ -100,6 +105,7 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
 
       if (isFree) {
         // Free ticket is immediately confirmed!
+        window.dispatchEvent(new CustomEvent('tixora-score-updated'));
         confetti({
           particleCount: 100,
           spread: 70,
@@ -249,17 +255,51 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
 
   return (
     <div className="max-w-3xl mx-auto space-y-6 pb-20">
-      <button
-        onClick={onBack}
-        className="inline-flex items-center gap-2 text-xs sm:text-sm font-black text-slate-700 hover:text-slate-900 transition cursor-pointer"
-      >
-        <ArrowLeft className="w-4 h-4" />
-        <span>Kembali ke Detail Event</span>
-      </button>
+      {/* Top back button & Progress Stepper */}
+      <div className="space-y-4">
+        <button
+          onClick={onBack}
+          className="inline-flex items-center gap-2 text-xs sm:text-sm font-black text-slate-700 hover:text-slate-900 transition cursor-pointer"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          <span>Kembali ke Detail Event</span>
+        </button>
+
+        {/* 3-Step Visual Progress Bar for Mobile & Desktop */}
+        <div className="grid grid-cols-3 gap-2">
+          <div
+            className={`py-2 px-2.5 rounded-xl border-2 border-slate-900 text-center transition-all ${
+              step === 'details'
+                ? 'bg-yellow-300 text-slate-900 font-black shadow-[2px_2px_0px_0px_#0f172a]'
+                : 'bg-white text-slate-600 font-bold opacity-80'
+            }`}
+          >
+            <span className="text-[10px] sm:text-xs">1. Data Pemesan</span>
+          </div>
+          <div
+            className={`py-2 px-2.5 rounded-xl border-2 border-slate-900 text-center transition-all ${
+              step === 'qris_payment'
+                ? 'bg-yellow-300 text-slate-900 font-black shadow-[2px_2px_0px_0px_#0f172a]'
+                : 'bg-white text-slate-600 font-bold opacity-80'
+            }`}
+          >
+            <span className="text-[10px] sm:text-xs">2. Bayar QRIS</span>
+          </div>
+          <div
+            className={`py-2 px-2.5 rounded-xl border-2 border-slate-900 text-center transition-all ${
+              step === 'proof_submitted'
+                ? 'bg-emerald-300 text-slate-900 font-black shadow-[2px_2px_0px_0px_#0f172a]'
+                : 'bg-white text-slate-600 font-bold opacity-80'
+            }`}
+          >
+            <span className="text-[10px] sm:text-xs">3. Verifikasi</span>
+          </div>
+        </div>
+      </div>
 
       <div className="cartoon-card bg-white overflow-hidden">
         {/* Header Banner */}
-        <div className="p-6 bg-slate-900 text-white flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b-3 border-slate-900">
+        <div className="p-5 sm:p-6 bg-slate-900 text-white flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b-3 border-slate-900">
           <div>
             <span className="text-[10px] sm:text-xs font-black uppercase tracking-wider text-yellow-300">
               Checkout & Pembayaran Tiket
@@ -275,7 +315,7 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
         </div>
 
         {error && (
-          <div className="m-6 p-4 bg-rose-50 border-2 border-rose-300 rounded-2xl flex items-center gap-3 text-rose-700 text-xs sm:text-sm font-bold shadow-xs">
+          <div className="m-5 sm:m-6 p-4 bg-rose-50 border-2 border-rose-300 rounded-2xl flex items-center gap-3 text-rose-700 text-xs sm:text-sm font-bold shadow-xs">
             <AlertCircle className="w-5 h-5 shrink-0 text-rose-600" />
             <p>{error}</p>
           </div>
@@ -283,7 +323,7 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
 
         {/* STEP 1: Attendee Information */}
         {step === 'details' && (
-          <form onSubmit={handleCreateOrder} className="p-6 sm:p-8 space-y-6">
+          <form onSubmit={handleCreateOrder} className="p-5 sm:p-8 space-y-6">
             <div className="space-y-4">
               <h3 className="font-black text-slate-900 text-base">Informasi Pemesan / Pemegang Tiket</h3>
 
@@ -296,7 +336,7 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
                   required
                   value={fullName}
                   onChange={(e) => setFullName(e.target.value)}
-                  className="w-full px-4 py-2.5 text-xs sm:text-sm font-bold rounded-xl border-2 border-slate-300 focus:border-indigo-600 focus:outline-none bg-slate-50/50"
+                  className="w-full px-4 py-3 text-sm font-bold rounded-xl border-2 border-slate-300 focus:border-indigo-600 focus:outline-none bg-slate-50/50"
                 />
               </div>
 
@@ -310,7 +350,7 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
                     required
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="w-full px-4 py-2.5 text-xs sm:text-sm font-bold rounded-xl border-2 border-slate-300 focus:border-indigo-600 focus:outline-none bg-slate-50/50"
+                    className="w-full px-4 py-3 text-sm font-bold rounded-xl border-2 border-slate-300 focus:border-indigo-600 focus:outline-none bg-slate-50/50"
                   />
                 </div>
 
@@ -323,13 +363,13 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
                     required
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
-                    className="w-full px-4 py-2.5 text-xs sm:text-sm font-bold rounded-xl border-2 border-slate-300 focus:border-indigo-600 focus:outline-none bg-slate-50/50"
+                    className="w-full px-4 py-3 text-sm font-bold rounded-xl border-2 border-slate-300 focus:border-indigo-600 focus:outline-none bg-slate-50/50"
                   />
                 </div>
               </div>
             </div>
 
-            {/* Price Breakdown */}
+            {/* Price Breakdown: ZERO TAX / ZERO FEES */}
             <div className="p-5 bg-amber-50/70 rounded-2xl border-2 border-slate-900 space-y-2 text-xs sm:text-sm font-bold shadow-[3px_3px_0px_0px_#0f172a]">
               <div className="flex justify-between text-slate-700">
                 <span>
@@ -337,11 +377,14 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
                 </span>
                 <span>{isFree ? 'Gratis' : formatCurrencyIDR(subtotalMinor)}</span>
               </div>
-              <div className="flex justify-between text-slate-700">
-                <span>Biaya Platform & Layanan</span>
-                <span>{isFree ? 'Rp 0' : formatCurrencyIDR(feesMinor)}</span>
+              <div className="flex justify-between text-emerald-700">
+                <span className="flex items-center gap-1.5">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span>Pajak & Biaya Transaksi</span>
+                </span>
+                <span className="font-black text-emerald-700">Rp 0 (Bebas Biaya / 0%)</span>
               </div>
-              <div className="pt-2 border-t-2 border-slate-900 flex justify-between font-black text-base text-slate-900">
+              <div className="pt-2 border-t-2 border-slate-900 flex justify-between font-black text-base sm:text-lg text-slate-900">
                 <span>Total Pembayaran</span>
                 <span className="text-indigo-700">{isFree ? 'Gratis' : formatCurrencyIDR(totalMinor)}</span>
               </div>
@@ -349,13 +392,13 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
 
             <div className="flex items-center gap-2 text-xs text-slate-600 font-bold">
               <Lock className="w-4 h-4 text-emerald-600 shrink-0" />
-              <span>Transaksi diamankan dengan reservasi kapasitas dan verifikasi bukti transfer manual.</span>
+              <span>Nominal pembayaran pas tanpa ada biaya tersembunyi atau pajak tambahan.</span>
             </div>
 
             <button
               type="submit"
               disabled={loading}
-              className="cartoon-btn w-full py-3.5 px-6 rounded-2xl font-black text-xs sm:text-sm bg-yellow-300 hover:bg-yellow-400 active:bg-yellow-500 text-slate-900 transition flex items-center justify-center gap-2"
+              className="cartoon-btn w-full py-4 px-6 rounded-2xl font-black text-sm sm:text-base bg-yellow-300 hover:bg-yellow-400 active:bg-yellow-500 text-slate-900 transition flex items-center justify-center gap-2 shadow-[3px_3px_0px_0px_#0f172a] cursor-pointer"
             >
               {loading ? (
                 <div className="w-5 h-5 border-2 border-slate-900 border-t-transparent rounded-full animate-spin"></div>
@@ -487,7 +530,7 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
                 </p>
               </div>
 
-              {/* Hidden File Input */}
+              {/* Hidden File Inputs: Gallery & Direct Camera */}
               <input
                 ref={fileInputRef}
                 type="file"
@@ -499,24 +542,36 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
                   }
                 }}
               />
+              <input
+                ref={cameraInputRef}
+                type="file"
+                accept="image/*"
+                capture="environment"
+                className="hidden"
+                onChange={(e) => {
+                  if (e.target.files && e.target.files[0]) {
+                    processImageFile(e.target.files[0]);
+                  }
+                }}
+              />
 
               {/* Dropzone / Preview */}
               {paymentProofUrl ? (
-                <div className="relative rounded-2xl border-2.5 border-slate-900 overflow-hidden shadow-[4px_4px_0px_0px_#0f172a] bg-slate-950 p-3 group">
+                <div className="relative rounded-2xl border-2.5 border-slate-900 overflow-hidden shadow-[4px_4px_0px_0px_#0f172a] bg-slate-950 p-4 group">
                   <div className="flex flex-col sm:flex-row items-center gap-4">
                     <img
                       src={paymentProofUrl}
                       alt="Bukti Transfer"
                       className="w-32 h-32 sm:w-40 sm:h-40 object-cover rounded-xl border border-slate-700 shrink-0"
                     />
-                    <div className="flex-1 text-white space-y-1.5 text-center sm:text-left">
+                    <div className="flex-1 text-white space-y-2 text-center sm:text-left">
                       <div className="flex items-center justify-center sm:justify-start gap-1.5 text-emerald-400 font-black text-xs">
                         <CheckCircle2 className="w-4 h-4" />
                         <span>Screenshot Bukti Berhasil Dimuat</span>
                       </div>
                       <p className="text-xs font-mono font-bold text-slate-300 truncate max-w-xs">{fileName}</p>
                       {fileSizeMB && (
-                        <span className="inline-block px-2 py-0.5 rounded-full bg-white/20 text-[10px] font-mono">
+                        <span className="inline-block px-2.5 py-0.5 rounded-full bg-white/20 text-[10px] font-mono">
                           {fileSizeMB} MB
                         </span>
                       )}
@@ -525,7 +580,7 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
                         <button
                           type="button"
                           onClick={() => fileInputRef.current?.click()}
-                          className="px-3 py-1.5 bg-white/20 hover:bg-white/30 text-white rounded-xl text-xs font-bold transition cursor-pointer"
+                          className="px-3.5 py-2 bg-white/20 hover:bg-white/30 text-white rounded-xl text-xs font-black transition cursor-pointer"
                         >
                           Ganti Foto
                         </button>
@@ -536,9 +591,9 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
                             setFileName('');
                             setFileSizeMB('');
                           }}
-                          className="px-3 py-1.5 bg-rose-600/80 hover:bg-rose-600 text-white rounded-xl text-xs font-bold transition flex items-center gap-1 cursor-pointer"
+                          className="px-3.5 py-2 bg-rose-600/80 hover:bg-rose-600 text-white rounded-xl text-xs font-black transition flex items-center gap-1 cursor-pointer"
                         >
-                          <Trash2 className="w-3 h-3" />
+                          <Trash2 className="w-3.5 h-3.5" />
                           <span>Hapus</span>
                         </button>
                       </div>
@@ -546,30 +601,52 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
                   </div>
                 </div>
               ) : (
-                <div
-                  onClick={() => fileInputRef.current?.click()}
-                  onDragOver={(e) => {
-                    e.preventDefault();
-                    setIsDragging(true);
-                  }}
-                  onDragLeave={(e) => {
-                    e.preventDefault();
-                    setIsDragging(false);
-                  }}
-                  onDrop={handleDrop}
-                  className={`border-3 border-dashed rounded-3xl p-8 text-center cursor-pointer transition ${
-                    isDragging
-                      ? 'border-indigo-600 bg-indigo-50/70 scale-[0.99]'
-                      : 'border-slate-400 bg-amber-50/30 hover:bg-amber-50/60'
-                  }`}
-                >
-                  <div className="w-16 h-16 rounded-2xl bg-yellow-300 border-2.5 border-slate-900 mx-auto flex items-center justify-center shadow-[3px_3px_0px_0px_#0f172a] text-slate-900 mb-3">
-                    <Upload className="w-8 h-8 text-indigo-700" />
+                <div className="space-y-3">
+                  <div
+                    onClick={() => fileInputRef.current?.click()}
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      setIsDragging(true);
+                    }}
+                    onDragLeave={(e) => {
+                      e.preventDefault();
+                      setIsDragging(false);
+                    }}
+                    onDrop={handleDrop}
+                    className={`border-3 border-dashed rounded-3xl p-6 sm:p-8 text-center cursor-pointer transition ${
+                      isDragging
+                        ? 'border-indigo-600 bg-indigo-50/70 scale-[0.99]'
+                        : 'border-slate-400 bg-amber-50/30 hover:bg-amber-50/60'
+                    }`}
+                  >
+                    <div className="w-14 h-14 rounded-2xl bg-yellow-300 border-2.5 border-slate-900 mx-auto flex items-center justify-center shadow-[3px_3px_0px_0px_#0f172a] text-slate-900 mb-3">
+                      <Upload className="w-7 h-7 text-indigo-700" />
+                    </div>
+                    <p className="text-sm font-black text-slate-900">
+                      Klik atau Tarik & Letakkan Foto Screenshot Bukti
+                    </p>
+                    <p className="text-xs font-bold text-slate-500 mt-1">Maksimal 50MB (JPG, PNG, WEBP)</p>
                   </div>
-                  <p className="text-sm font-black text-slate-900">
-                    Klik atau Tarik & Letakkan Foto Screenshot Bukti Transfer
-                  </p>
-                  <p className="text-xs font-bold text-slate-500 mt-1">Maksimal 50MB (JPG, PNG, WEBP)</p>
+
+                  {/* Mobile Quick Action Buttons: Camera & Gallery */}
+                  <div className="grid grid-cols-2 gap-2 sm:gap-3">
+                    <button
+                      type="button"
+                      onClick={() => cameraInputRef.current?.click()}
+                      className="py-2.5 px-3 rounded-xl bg-white border-2 border-slate-900 shadow-[2px_2px_0px_0px_#0f172a] text-xs font-black text-slate-900 flex items-center justify-center gap-2 hover:bg-slate-50 active:scale-98 transition cursor-pointer"
+                    >
+                      <Camera className="w-4 h-4 text-indigo-600 shrink-0" />
+                      <span>Foto Kamera HP</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="py-2.5 px-3 rounded-xl bg-white border-2 border-slate-900 shadow-[2px_2px_0px_0px_#0f172a] text-xs font-black text-slate-900 flex items-center justify-center gap-2 hover:bg-slate-50 active:scale-98 transition cursor-pointer"
+                    >
+                      <ImageIcon className="w-4 h-4 text-emerald-600 shrink-0" />
+                      <span>Pilih dari Galeri</span>
+                    </button>
+                  </div>
                 </div>
               )}
 
@@ -635,7 +712,7 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
                 ) : (
                   <>
                     <CheckCircle2 className="w-5 h-5 text-slate-900" />
-                    <span>Kirim Bukti Pembayaran & Tunggu Verifikasi Admin 🚀</span>
+                    <span>Kirim Bukti Pembayaran & Tunggu Verifikasi Admin</span>
                   </>
                 )}
               </button>
@@ -651,8 +728,9 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
             </div>
 
             <div className="space-y-2 max-w-md mx-auto">
-              <span className="inline-block px-3 py-1 rounded-full bg-yellow-300 text-slate-900 border-2 border-slate-900 text-xs font-black">
-                Status: Menunggu Persetujuan Admin 🛡️
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-yellow-300 text-slate-900 border-2 border-slate-900 text-xs font-black">
+                <ShieldCheck className="w-3.5 h-3.5 text-slate-900" />
+                <span>Status: Menunggu Persetujuan Admin</span>
               </span>
               <h3 className="text-xl sm:text-2xl font-black text-slate-900">
                 Bukti Pembayaran Berhasil Dikirim!
@@ -677,9 +755,10 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
             <button
               type="button"
               onClick={() => onSuccess(pendingOrderId || '')}
-              className="cartoon-btn px-8 py-3.5 bg-yellow-300 hover:bg-yellow-400 text-slate-900 font-black text-xs sm:text-sm rounded-2xl border-2 border-slate-900 shadow-[3px_3px_0px_0px_#0f172a] transition cursor-pointer"
+              className="cartoon-btn inline-flex items-center gap-2 px-8 py-3.5 bg-yellow-300 hover:bg-yellow-400 text-slate-900 font-black text-xs sm:text-sm rounded-2xl border-2 border-slate-900 shadow-[3px_3px_0px_0px_#0f172a] transition cursor-pointer"
             >
-              Lihat Status di Menu Tiket Saya 🎟️
+              <Ticket className="w-4 h-4" />
+              <span>Lihat Status di Menu Tiket Saya</span>
             </button>
           </div>
         )}

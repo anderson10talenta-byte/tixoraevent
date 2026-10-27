@@ -35,9 +35,9 @@ export const EventCard: React.FC<EventCardProps> = ({ event, onSelect }) => {
     food: 'Kuliner & F&B',
     art: 'Seni & Budaya',
     community: 'Komunitas',
-    'Seni & Animasi': 'Seni & Animasi 🎨',
-    'Musik & Konser': 'Musik & Konser 🎵',
-    'Teknologi & Sains': 'Teknologi & Sains 🤖',
+    'Seni & Animasi': 'Seni & Animasi',
+    'Musik & Konser': 'Musik & Konser',
+    'Teknologi & Sains': 'Teknologi & Sains',
   };
 
   const imageSrc =
@@ -113,9 +113,13 @@ export const EventCard: React.FC<EventCardProps> = ({ event, onSelect }) => {
             <span className="text-[10px] uppercase font-black text-slate-400 block tracking-wider">
               Mulai Dari
             </span>
-            <span className="text-base sm:text-lg font-black text-indigo-700">
-              {lowestPrice === 0 ? '🎉 Gratis' : formatCurrencyIDR(lowestPrice)}
-            </span>
+              {lowestPrice === 0 ? (
+                <span className="inline-flex items-center gap-1 text-emerald-700">
+                  <Sparkles className="w-4 h-4" /> Gratis
+                </span>
+              ) : (
+                formatCurrencyIDR(lowestPrice)
+              )}
           </div>
           <span className="cartoon-btn inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-black bg-yellow-300 text-slate-900">
             <span>Pesan Tiket</span>

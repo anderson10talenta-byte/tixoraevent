@@ -45,8 +45,8 @@ export const DownloadAppModal: React.FC<DownloadAppModalProps> = ({ isOpen, onCl
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in">
-      <div className="bg-white rounded-3xl border-2.5 border-slate-900 shadow-[6px_6px_0px_0px_#0f172a] w-full max-w-md p-6 sm:p-8 space-y-6 relative overflow-hidden">
+    <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-sm p-4 flex min-h-full items-start sm:items-center justify-center animate-in fade-in">
+      <div className="bg-white rounded-3xl border-2.5 border-slate-900 shadow-[6px_6px_0px_0px_#0f172a] w-full max-w-md my-auto p-6 sm:p-8 space-y-6 relative overflow-hidden">
         <button
           onClick={onClose}
           className="absolute top-4 right-4 p-1.5 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 cursor-pointer"
@@ -60,8 +60,9 @@ export const DownloadAppModal: React.FC<DownloadAppModalProps> = ({ isOpen, onCl
           <div className="w-16 h-16 rounded-3xl bg-white border-2.5 border-slate-900 mx-auto flex items-center justify-center shadow-[3px_3px_0px_0px_#0f172a] p-2">
             <TixoraLogo size={52} showText={false} />
           </div>
-          <h3 className="text-2xl font-black text-slate-900 tracking-tight">
-            Pasang Aplikasi Tixora 📲
+          <h3 className="text-2xl font-black text-slate-900 tracking-tight flex items-center justify-center gap-2">
+            <span>Pasang Aplikasi Tixora</span>
+            <Smartphone className="w-6 h-6 text-indigo-600 inline" />
           </h3>
           <p className="text-xs text-slate-500 font-medium">
             Akses tiket digital Anda langsung dari layar utama ponsel Anda, siap pakai kapan saja bahkan saat sinyal lemah.
@@ -115,7 +116,7 @@ export const DownloadAppModal: React.FC<DownloadAppModalProps> = ({ isOpen, onCl
               <span className="font-bold text-slate-900 block">Panduan Cepat Pasang Manual:</span>
               {guideHighlighted && (
                 <span className="text-[10px] font-black text-amber-800 bg-amber-200 px-2 py-0.5 rounded-full">
-                  Langkah Mudah di Browser Anda 👇
+                  Langkah Mudah di Browser Anda
                 </span>
               )}
             </div>

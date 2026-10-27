@@ -26,7 +26,10 @@ import type {
   CheckInResultType,
   OrganizerApplication,
   OrganizerVerificationStatus,
+  EventCategory,
+  CreditScoreLog,
 } from './src/lib/types.ts';
+import { DEFAULT_CATEGORIES } from './src/lib/categoriesData.ts';
 import {
   generateSecureTicketToken,
   hashTicketToken,
@@ -60,6 +63,8 @@ class TixoraDatabase {
   checkInLogs: CheckInLog[] = [];
   auditLogs: AuditLog[] = [];
   organizerApplications: OrganizerApplication[] = [];
+  categories: EventCategory[] = [];
+  creditScoreLogs: CreditScoreLog[] = [];
 
   // Plaintext token store for legitimate attendee access only
   // Key: ticketId, Value: rawToken
@@ -71,6 +76,7 @@ class TixoraDatabase {
   constructor() {
     this.ensureSuperAdmin();
     this.loadPersistedData();
+    this.processCompletedEventsLifecycle();
     this.persist();
   }
 
@@ -88,6 +94,7 @@ class TixoraDatabase {
         avatarUrl:
           'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80',
         isSuperAdmin: true,
+        creditScore: 10,
         createdAt: '2026-10-01T00:00:00.000Z',
         organizerStatus: 'approved',
       };
@@ -95,6 +102,9 @@ class TixoraDatabase {
     } else {
       adminProfile.isSuperAdmin = true;
       adminProfile.organizerStatus = 'approved';
+      if (adminProfile.creditScore === undefined) {
+        adminProfile.creditScore = 10;
+      }
     }
   }
 
@@ -119,6 +129,8 @@ class TixoraDatabase {
           if (Array.isArray(parsed.checkInLogs)) this.checkInLogs = parsed.checkInLogs;
           if (Array.isArray(parsed.auditLogs)) this.auditLogs = parsed.auditLogs;
           if (Array.isArray(parsed.organizerApplications)) this.organizerApplications = parsed.organizerApplications;
+          if (Array.isArray(parsed.categories)) this.categories = parsed.categories;
+          if (Array.isArray(parsed.creditScoreLogs)) this.creditScoreLogs = parsed.creditScoreLogs;
           if (Array.isArray(parsed.rawTokens)) {
             for (const [k, v] of parsed.rawTokens) {
               this.rawTokenStore.set(k, v);
@@ -129,6 +141,19 @@ class TixoraDatabase {
     } catch (e) {
       console.warn('[DB] Gagal memuat data tersimpan dari disk:', e);
     }
+
+    // Default categories if none exist
+    if (!this.categories || this.categories.length === 0) {
+      this.categories = [...DEFAULT_CATEGORIES];
+    }
+
+    // Ensure all profiles have creditScore initialized to 10
+    for (const p of this.profiles) {
+      if (p.creditScore === undefined) {
+        p.creditScore = 10;
+      }
+    }
+
     this.ensureSuperAdmin();
   }
 
@@ -155,11 +180,113 @@ class TixoraDatabase {
         checkInLogs: this.checkInLogs,
         auditLogs: this.auditLogs,
         organizerApplications: this.organizerApplications,
+        categories: this.categories,
+        creditScoreLogs: this.creditScoreLogs,
         rawTokens,
       };
       fs.writeFileSync(DB_FILE_PATH, JSON.stringify(payload, null, 2), 'utf-8');
     } catch (e) {
       console.warn('[DB] Gagal menyimpan data ke disk:', e);
+    }
+  }
+
+  // --- AUTOMATED EVENT COMPLETION LIFECYCLE & NO-SHOW CREDIT DEDUCTION ---
+  processCompletedEventsLifecycle() {
+    const now = Date.now();
+    let hasChanges = false;
+
+    for (const event of this.events) {
+      const rawEnd = event.endsAt || (event as any).endDate;
+      const rawStart = event.startsAt || (event as any).startDate;
+      if (!rawEnd && !rawStart) continue;
+
+      const endTime = rawEnd
+        ? new Date(rawEnd).getTime()
+        : new Date(rawStart).getTime() + 6 * 3600 * 1000;
+
+      if (isNaN(endTime)) continue;
+      const isEnded = endTime < now;
+
+      if (isEnded) {
+        if (event.status !== 'completed') {
+          event.status = 'completed';
+          hasChanges = true;
+        }
+
+        // Process all tickets for this completed event
+        const eventTickets = this.tickets.filter((t) => t.eventId === event.id);
+        const processedAttendeesForThisEvent = new Set<string>();
+
+        for (const ticket of eventTickets) {
+          // If ticket was valid (confirmed order) and attendee NEVER checked in
+          if (ticket.status === 'valid' && !ticket.checkedInAt) {
+            (ticket.status as any) = 'expired';
+            ticket.noShow = true;
+            ticket.completedAt = new Date().toISOString();
+            hasChanges = true;
+
+            // Skip penalty if ticket was created after the event already ended
+            const ticketIssuedTime = new Date(ticket.issuedAt || ticket.createdAt || 0).getTime();
+            if (ticketIssuedTime > endTime) {
+              continue;
+            }
+
+            // Find attendee to deduct 3 points credit score
+            const registration = this.registrations.find((r) => r.id === ticket.registrationId);
+            const order = registration ? this.orders.find((o) => o.id === registration.orderId) : null;
+            const attendeeId = registration?.attendeeUserId || order?.attendeeUserId;
+
+            let attendeeProfile: Profile | undefined;
+            if (attendeeId) {
+              attendeeProfile = this.profiles.find(
+                (p) =>
+                  p.id === attendeeId ||
+                  (registration?.email && p.email?.toLowerCase() === registration.email.toLowerCase())
+              );
+            } else if (registration?.email) {
+              attendeeProfile = this.profiles.find(
+                (p) => p.email?.toLowerCase() === registration.email.toLowerCase()
+              );
+            }
+
+            if (attendeeProfile) {
+              // Ensure we only penalize once per attendee per event (max 3 points deduction per event)
+              if (processedAttendeesForThisEvent.has(attendeeProfile.id)) {
+                continue;
+              }
+              const alreadyPenalized = this.creditScoreLogs.some(
+                (l) => l.userId === attendeeProfile.id && l.eventId === event.id && l.type === 'no_show'
+              );
+              if (alreadyPenalized) {
+                processedAttendeesForThisEvent.add(attendeeProfile.id);
+                continue;
+              }
+
+              processedAttendeesForThisEvent.add(attendeeProfile.id);
+              const prevScore = attendeeProfile.creditScore ?? 10;
+              const newScore = Math.max(0, prevScore - 3);
+              attendeeProfile.creditScore = newScore;
+
+              this.creditScoreLogs.unshift({
+                id: crypto.randomUUID(),
+                userId: attendeeProfile.id,
+                ticketId: ticket.id,
+                eventId: event.id,
+                eventTitle: event.title,
+                change: -3,
+                currentScore: newScore,
+                type: 'no_show',
+                reason: `Tidak hadir pada event (No-Show): ${event.title} (-3 Poin)`,
+                timestamp: new Date().toISOString(),
+              });
+            }
+          }
+        }
+      }
+    }
+
+    if (hasChanges) {
+      this.persist();
     }
   }
 
@@ -319,6 +446,49 @@ class TixoraDatabase {
       const order = registration ? this.orders.find((o) => o.id === registration.orderId) : null;
 
       // Status checks
+      // 1. Check if event is completed or ended
+      if (targetEvent && (targetEvent.status === 'completed' || new Date(targetEvent.endsAt).getTime() < Date.now())) {
+        this.checkInLogs.unshift({
+          id: crypto.randomUUID(),
+          ticketId: ticket.id,
+          eventId,
+          checkedInBy: staffUserId,
+          result: 'invalid',
+          scannedAt: now,
+          scannerMetadata,
+        });
+        return {
+          result: 'invalid',
+          allowed: false,
+          ticketNumber: ticket.ticketNumber,
+          fullName: registration?.fullName,
+          ticketTypeName: ticketType?.name,
+          scannedAt: now,
+          message: 'Event telah selesai. Tiket tidak dapat digunakan untuk check-in lagi.',
+        };
+      }
+
+      if ((ticket.status as string) === 'expired') {
+        this.checkInLogs.unshift({
+          id: crypto.randomUUID(),
+          ticketId: ticket.id,
+          eventId,
+          checkedInBy: staffUserId,
+          result: 'invalid',
+          scannedAt: now,
+          scannerMetadata,
+        });
+        return {
+          result: 'invalid',
+          allowed: false,
+          ticketNumber: ticket.ticketNumber,
+          fullName: registration?.fullName,
+          ticketTypeName: ticketType?.name,
+          scannedAt: now,
+          message: 'Status tiket Selesai (Masa berlaku habis). Tiket tidak dapat di-scan.',
+        };
+      }
+
       if (ticket.status === 'checked_in') {
         this.checkInLogs.unshift({
           id: crypto.randomUUID(),
@@ -436,6 +606,10 @@ class TixoraDatabase {
     const targetEvent = this.events.find((e) => e.id === eventId || e.slug === eventId);
     if (!targetEvent || targetEvent.status !== 'published') {
       throw new Error('Event tidak ditemukan atau belum dipublikasikan');
+    }
+
+    if (new Date(targetEvent.endsAt).getTime() < Date.now()) {
+      throw new Error('Event telah selesai. Tiket tidak dapat dipesan lagi.');
     }
 
     const ticketType = this.ticketTypes.find(
@@ -755,20 +929,37 @@ export async function createExpressApp() {
     res.json({ success: true, user: profile });
   });
 
-  // 2. Events Discovery (Public)
+  // 2. Events Discovery (Public - Automatically hides completed/finished events)
   app.get('/api/events', (req, res) => {
+    db.processCompletedEventsLifecycle();
+    const now = Date.now();
     const { search, category, status } = req.query;
     let results = db.events;
 
-    // Filter by publication status (public only sees published)
+    // Filter by publication status
+    // Public only sees published events that HAVE NOT FINISHED YET
     if (status && typeof status === 'string') {
       results = results.filter((e) => e.status === status);
     } else {
       results = results.filter((e) => e.status === 'published');
     }
 
+    results = results.filter((e) => {
+      if (e.status !== 'published') return true;
+      const rawEnd = e.endsAt || (e as any).endDate;
+      const rawStart = e.startsAt || (e as any).startDate;
+      if (!rawEnd && !rawStart) return true;
+
+      const endTime = rawEnd
+        ? new Date(rawEnd).getTime()
+        : new Date(rawStart).getTime() + 6 * 3600 * 1000;
+
+      if (isNaN(endTime)) return true;
+      return endTime >= now;
+    });
+
     if (category && typeof category === 'string' && category !== 'all') {
-      results = results.filter((e) => e.category === category);
+      results = results.filter((e) => e.category === category || e.category.toLowerCase() === category.toLowerCase());
     }
 
     if (search && typeof search === 'string') {
@@ -799,6 +990,7 @@ export async function createExpressApp() {
 
   // Single event detail
   app.get('/api/events/:identifier', (req, res) => {
+    db.processCompletedEventsLifecycle();
     const { identifier } = req.params;
     const event = db.events.find(
       (e) => e.id === identifier || e.slug === identifier
@@ -808,13 +1000,120 @@ export async function createExpressApp() {
       return res.status(404).json({ error: 'Event tidak ditemukan' });
     }
 
+    const now = Date.now();
+    const rawEnd = event.endsAt || (event as any).endDate;
+    const rawStart = event.startsAt || (event as any).startDate;
+    const endTime = rawEnd
+      ? new Date(rawEnd).getTime()
+      : rawStart
+      ? new Date(rawStart).getTime() + 6 * 3600 * 1000
+      : Infinity;
+    const isCompleted = event.status === 'completed' || (!isNaN(endTime) && endTime < now);
+
     const org = db.organizations.find((o) => o.id === event.organizationId);
-    const tickets = db.ticketTypes.filter((tt) => tt.eventId === event.id);
+    const tickets = db.ticketTypes
+      .filter((tt) => tt.eventId === event.id)
+      .map((tt) => ({
+        ...tt,
+        status: isCompleted ? 'inactive' : tt.status,
+      }));
 
     res.json({
       ...event,
+      isCompleted,
       organization: org,
       ticketTypes: tickets,
+    });
+  });
+
+  // --- CATEGORIES MANAGEMENT (Admin can add custom categories) ---
+  app.get('/api/categories', (req, res) => {
+    res.json(db.categories);
+  });
+
+  app.post('/api/categories', (req, res) => {
+    const user = (req as any).user as Profile;
+    const userEmailHeader = (req.headers['x-user-email'] as string)?.toLowerCase() || user?.email?.toLowerCase() || '';
+    const isSuperAdmin = !!user?.isSuperAdmin || userEmailHeader === 'anderson10.talenta@gmail.com';
+
+    if (!isSuperAdmin) {
+      return res.status(403).json({ error: 'Hanya Super Admin yang dapat menambahkan kategori baru.' });
+    }
+
+    const { name, iconName, description } = req.body;
+    if (!name || typeof name !== 'string' || !name.trim()) {
+      return res.status(400).json({ error: 'Nama kategori wajib diisi.' });
+    }
+
+    const cleanName = name.trim();
+    const slug = cleanName
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/(^-|-$)/g, '');
+
+    const existing = db.categories.find(
+      (c) => c.id === slug || c.name.toLowerCase() === cleanName.toLowerCase()
+    );
+    if (existing) {
+      return res.status(400).json({ error: 'Kategori dengan nama tersebut sudah ada.' });
+    }
+
+    const newCategory: EventCategory = {
+      id: slug || `cat-${Date.now()}`,
+      name: cleanName,
+      iconName: iconName || 'Tag',
+      description: description?.trim() || '',
+      createdAt: new Date().toISOString(),
+    };
+
+    db.categories.push(newCategory);
+    db.persist();
+
+    res.status(201).json({ success: true, category: newCategory });
+  });
+
+  app.delete('/api/categories/:id', (req, res) => {
+    const user = (req as any).user as Profile;
+    const userEmailHeader = (req.headers['x-user-email'] as string)?.toLowerCase() || user?.email?.toLowerCase() || '';
+    const isSuperAdmin = !!user?.isSuperAdmin || userEmailHeader === 'anderson10.talenta@gmail.com';
+
+    if (!isSuperAdmin) {
+      return res.status(403).json({ error: 'Hanya Super Admin yang dapat menghapus kategori.' });
+    }
+
+    const { id } = req.params;
+    const idx = db.categories.findIndex((c) => c.id === id);
+    if (idx === -1) {
+      return res.status(404).json({ error: 'Kategori tidak ditemukan.' });
+    }
+
+    const deleted = db.categories.splice(idx, 1);
+    db.persist();
+
+    res.json({ success: true, deleted: deleted[0] });
+  });
+
+  // --- CREDIT SCORE MANAGEMENT (User credit score & logs) ---
+  app.get('/api/users/credit-score', (req, res) => {
+    const user = (req as any).user as Profile;
+    const userIdHeader = (req.headers['x-user-id'] as string) || user?.id || '';
+    const userEmailHeader = (req.headers['x-user-email'] as string)?.toLowerCase() || user?.email?.toLowerCase() || '';
+
+    const profile = db.profiles.find(
+      (p) =>
+        (userIdHeader && p.id === userIdHeader) ||
+        (userEmailHeader && p.email?.toLowerCase() === userEmailHeader)
+    );
+
+    const score = profile?.creditScore ?? 10;
+    const logs = db.creditScoreLogs.filter(
+      (l) => (userIdHeader && l.userId === userIdHeader) || (profile && l.userId === profile.id)
+    );
+
+    res.json({
+      creditScore: score,
+      maxScore: 10,
+      logs,
     });
   });
 
@@ -1403,6 +1702,23 @@ export async function createExpressApp() {
     }
     if (eventId && typeof eventId === 'string') {
       ordersList = ordersList.filter((o) => o.eventId === eventId);
+    } else if (!isSuper && (user?.id || req.headers['x-user-id'])) {
+      const currentUserId = user?.id || (req.headers['x-user-id'] as string);
+      const currentUserEmail = user?.email || (req.headers['x-user-email'] as string);
+      const userOrgIds = new Set(
+        db.organizationMembers.filter((om) => om.userId === currentUserId).map((om) => om.organizationId)
+      );
+      const myEventIds = new Set(
+        db.events
+          .filter(
+            (e) =>
+              e.createdBy === currentUserId ||
+              (currentUserEmail && e.createdBy === currentUserEmail) ||
+              userOrgIds.has(e.organizationId)
+          )
+          .map((e) => e.id)
+      );
+      ordersList = ordersList.filter((o) => myEventIds.has(o.eventId));
     }
 
     const enriched = ordersList.map((o) => {
@@ -1442,11 +1758,16 @@ export async function createExpressApp() {
       return res.status(404).json({ error: 'Pesanan tidak ditemukan' });
     }
 
+    const reviewerName =
+      user?.fullName ||
+      (req.headers['x-user-name'] as string) ||
+      (isSuper ? 'Super Admin' : 'Penyelenggara Acara');
+
     if (action === 'approve') {
       try {
         const ref = `QRIS-VERIF-${Math.floor(100000 + Math.random() * 900000)}`;
         const result = await db.confirmPaidOrder(orderId, 'QRIS_GOPAY_SOLVERSTUDIO', ref);
-        order.reviewedBy = user?.fullName || 'Super Admin';
+        order.reviewedBy = reviewerName;
         order.reviewedAt = new Date().toISOString();
         db.persist();
 
@@ -1462,7 +1783,7 @@ export async function createExpressApp() {
     } else {
       order.status = 'rejected';
       order.rejectionReason = rejectionReason || 'Bukti transfer tidak valid atau nominal tidak sesuai.';
-      order.reviewedBy = user?.fullName || 'Super Admin';
+      order.reviewedBy = reviewerName;
       order.reviewedAt = new Date().toISOString();
       order.updatedAt = new Date().toISOString();
 
@@ -1484,6 +1805,7 @@ export async function createExpressApp() {
 
   // 5. Digital Tickets (Attendee View)
   app.get('/api/tickets/my', (req, res) => {
+    db.processCompletedEventsLifecycle();
     const user = (req as any).user as Profile;
     if (!user) {
       return res.json([]);
@@ -1495,6 +1817,7 @@ export async function createExpressApp() {
     );
     const regIds = userRegistrations.map((r) => r.id);
 
+    const now = Date.now();
     const userTickets = db.tickets
       .filter((t) => regIds.includes(t.registrationId) || t.registrationId === user.id)
       .map((t) => {
@@ -1503,12 +1826,21 @@ export async function createExpressApp() {
         const reg = userRegistrations.find((r) => r.id === t.registrationId);
         const rawToken = db.rawTokenStore.get(t.id);
 
+        const endTime = event?.endsAt
+          ? new Date(event.endsAt).getTime()
+          : event?.startsAt
+          ? new Date(event.startsAt).getTime() + 6 * 3600 * 1000
+          : 0;
+        const isEventCompleted = event ? (event.status === 'completed' || endTime < now) : false;
+
         return {
           ...t,
           rawToken,
+          isEventCompleted,
           eventTitle: event?.title || 'Event Tixora',
-          eventVenue: event?.venueName || 'GBK Arena, Jakarta',
+          eventVenue: event?.venueName || 'Venue Acara',
           eventStartsAt: event?.startsAt,
+          eventEndsAt: event?.endsAt,
           ticketTypeName: ticketType?.name || 'Tiket Masuk',
           attendeeName: reg?.fullName || user.fullName,
         };
@@ -1519,6 +1851,7 @@ export async function createExpressApp() {
 
   // Single ticket view
   app.get('/api/tickets/:ticketId', (req, res) => {
+    db.processCompletedEventsLifecycle();
     const { ticketId } = req.params;
     const ticket = db.tickets.find((t) => t.id === ticketId || t.ticketNumber === ticketId);
     if (!ticket) {
@@ -1530,12 +1863,129 @@ export async function createExpressApp() {
     const registration = db.registrations.find((r) => r.id === ticket.registrationId);
     const rawToken = db.rawTokenStore.get(ticket.id);
 
+    const now = Date.now();
+    const endTime = event?.endsAt
+      ? new Date(event.endsAt).getTime()
+      : event?.startsAt
+      ? new Date(event.startsAt).getTime() + 6 * 3600 * 1000
+      : 0;
+    const isEventCompleted = event ? (event.status === 'completed' || endTime < now) : false;
+
     res.json({
       ...ticket,
       rawToken,
+      isEventCompleted,
       event,
       ticketType,
       registration,
+    });
+  });
+
+  // Cancel Ticket by Attendee (with Credit Score Penalty: H-1 = -3, H-3 = -2, H-5 = -1, >H-5 = 0)
+  app.post('/api/tickets/:ticketId/cancel', (req, res) => {
+    const { ticketId } = req.params;
+    const user = (req as any).user as Profile;
+    const userIdHeader = (req.headers['x-user-id'] as string) || user?.id || '';
+    const userEmailHeader = (req.headers['x-user-email'] as string)?.trim().toLowerCase() || user?.email?.toLowerCase() || '';
+
+    const ticket = db.tickets.find((t) => t.id === ticketId || t.ticketNumber === ticketId);
+    if (!ticket) {
+      return res.status(404).json({ error: 'Tiket tidak ditemukan' });
+    }
+
+    if (ticket.status === 'checked_in') {
+      return res.status(400).json({ error: 'Tiket sudah digunakan check-in dan tidak dapat dibatalkan.' });
+    }
+
+    if (ticket.status === 'cancelled') {
+      return res.status(400).json({ error: 'Tiket sudah berstatus dibatalkan.' });
+    }
+
+    if ((ticket.status as string) === 'expired') {
+      return res.status(400).json({ error: 'Event telah selesai, tiket tidak dapat dibatalkan.' });
+    }
+
+    const event = db.events.find((e) => e.id === ticket.eventId);
+    if (!event) {
+      return res.status(404).json({ error: 'Event tidak ditemukan' });
+    }
+
+    const now = Date.now();
+    const eventStart = new Date(event.startsAt).getTime();
+    if (eventStart < now) {
+      return res.status(400).json({ error: 'Event sudah dimulai atau selesai, tiket tidak dapat dibatalkan.' });
+    }
+
+    const diffMs = eventStart - now;
+    const diffDays = diffMs / (1000 * 60 * 60 * 24);
+
+    let penalty = 0;
+    let penaltyReason = '';
+    let penaltyType: 'cancel_h1' | 'cancel_h3' | 'cancel_h5' | 'cancel_early' = 'cancel_early';
+
+    if (diffDays <= 1) {
+      penalty = 3;
+      penaltyReason = `Pembatalan tiket H-1 sebelum acara: ${event.title} (-3 Poin)`;
+      penaltyType = 'cancel_h1';
+    } else if (diffDays <= 3) {
+      penalty = 2;
+      penaltyReason = `Pembatalan tiket H-3 sebelum acara: ${event.title} (-2 Poin)`;
+      penaltyType = 'cancel_h3';
+    } else if (diffDays <= 5) {
+      penalty = 1;
+      penaltyReason = `Pembatalan tiket H-5 sebelum acara: ${event.title} (-1 Poin)`;
+      penaltyType = 'cancel_h5';
+    } else {
+      penalty = 0;
+      penaltyReason = `Pembatalan tiket lebih dari H-5: ${event.title} (0 Poin / Bebas Penalti)`;
+      penaltyType = 'cancel_early';
+    }
+
+    ticket.status = 'cancelled';
+    ticket.cancelledAt = new Date().toISOString();
+    ticket.cancellationPenalty = penalty;
+
+    // Release capacity
+    const ticketType = db.ticketTypes.find((tt) => tt.id === ticket.ticketTypeId);
+    if (ticketType) {
+      ticketType.soldCount = Math.max(0, ticketType.soldCount - 1);
+    }
+
+    // Deduct user credit score
+    const attendeeProfile = db.profiles.find(
+      (p) =>
+        (userIdHeader && p.id === userIdHeader) ||
+        (userEmailHeader && p.email?.toLowerCase() === userEmailHeader)
+    );
+
+    let currentScore = 10;
+    if (attendeeProfile) {
+      const prevScore = attendeeProfile.creditScore ?? 10;
+      currentScore = Math.max(0, prevScore - penalty);
+      attendeeProfile.creditScore = currentScore;
+
+      db.creditScoreLogs.unshift({
+        id: crypto.randomUUID(),
+        userId: attendeeProfile.id,
+        ticketId: ticket.id,
+        eventId: event.id,
+        eventTitle: event.title,
+        change: -penalty,
+        currentScore,
+        type: penaltyType,
+        reason: penaltyReason,
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    db.persist();
+
+    res.json({
+      success: true,
+      message: `Tiket berhasil dibatalkan.${penalty > 0 ? ` Skor kredit Anda berkurang ${penalty} poin.` : ' Tanpa potongan poin kredit.'}`,
+      penalty,
+      currentCreditScore: currentScore,
+      ticket,
     });
   });
 
@@ -1792,6 +2242,69 @@ export async function createExpressApp() {
       };
     });
     res.json(enriched);
+  });
+
+  // Admin Credit Scores Overview & Reset
+  app.get('/api/admin/credit-scores', (req, res) => {
+    const user = (req as any).user as Profile;
+    const userEmailHeader = (req.headers['x-user-email'] as string)?.toLowerCase() || user?.email?.toLowerCase() || '';
+    const isSuperAdmin = !!user?.isSuperAdmin || userEmailHeader === 'anderson10.talenta@gmail.com';
+    if (!isSuperAdmin) {
+      return res.status(403).json({ error: 'Akses ditolak: Hanya Super Admin' });
+    }
+
+    const userScores = db.profiles.map((p) => {
+      const logs = db.creditScoreLogs.filter((l) => l.userId === p.id);
+      const userTickets = db.tickets.filter((t) => {
+        const reg = db.registrations.find((r) => r.id === t.registrationId);
+        return reg?.email?.toLowerCase() === p.email.toLowerCase() || (t as any).attendeeUserId === p.id;
+      });
+
+      return {
+        id: p.id,
+        fullName: p.fullName,
+        email: p.email,
+        creditScore: p.creditScore ?? 10,
+        logsCount: logs.length,
+        ticketsCount: userTickets.length,
+        logs,
+      };
+    });
+
+    res.json(userScores);
+  });
+
+  app.post('/api/admin/credit-scores/:userId/reset', (req, res) => {
+    const user = (req as any).user as Profile;
+    const userEmailHeader = (req.headers['x-user-email'] as string)?.toLowerCase() || user?.email?.toLowerCase() || '';
+    const isSuperAdmin = !!user?.isSuperAdmin || userEmailHeader === 'anderson10.talenta@gmail.com';
+    if (!isSuperAdmin) {
+      return res.status(403).json({ error: 'Akses ditolak: Hanya Super Admin' });
+    }
+
+    const { userId } = req.params;
+    const profile = db.profiles.find((p) => p.id === userId || p.email.toLowerCase() === userId.toLowerCase());
+    if (!profile) {
+      return res.status(404).json({ error: 'Profil tidak ditemukan' });
+    }
+
+    const oldScore = profile.creditScore ?? 10;
+    profile.creditScore = 10;
+    db.creditScoreLogs.unshift({
+      id: crypto.randomUUID(),
+      userId: profile.id,
+      ticketId: 'admin-reset',
+      eventId: 'admin-action',
+      eventTitle: 'Pemulihan oleh Super Admin',
+      change: 10 - oldScore,
+      currentScore: 10,
+      type: 'cancel_early',
+      reason: 'Pemulihan reputasi skor kredit ke 10 poin oleh Super Admin',
+      timestamp: new Date().toISOString(),
+    });
+
+    db.persist();
+    res.json({ success: true, message: `Skor kredit ${profile.fullName} berhasil dipulihkan ke 10/10.`, profile });
   });
 
   // 8. Real Authentication: Register & Login (No dummy accounts)

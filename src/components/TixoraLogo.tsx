@@ -149,7 +149,7 @@ export const TixoraLogo: React.FC<TixoraLogoProps> = ({
             )}
           </div>
           {subtitle && (
-            <span className="text-[10px] sm:text-[11px] font-bold text-slate-600 mt-1 leading-tight">
+            <span className="hidden sm:block text-[10px] sm:text-[11px] font-bold text-slate-600 mt-0.5 leading-tight">
               {subtitle}
             </span>
           )}

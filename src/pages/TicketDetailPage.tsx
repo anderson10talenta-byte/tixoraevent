@@ -76,17 +76,22 @@ export const TicketDetailPage: React.FC<TicketDetailPageProps> = ({
 
   const { event, ticketType, registration, rawToken, ticketNumber, status, checkedInAt } = ticketData;
 
-  // Determine actual status based on ticket status and event expiration
-  const isEventExpired = event?.endsAt ? new Date(event.endsAt).getTime() < Date.now() : false;
-  const computedActualStatus: 'valid' | 'used' | 'expired' =
-    status === 'checked_in' || status === 'already_used'
-      ? 'used'
-      : isEventExpired || status === 'expired'
-      ? 'expired'
-      : 'valid';
+  // Determine actual status based on ticket status and event completion
+  const isEventCompleted = (event?.endsAt && new Date(event.endsAt).getTime() < Date.now()) || event?.status === 'completed' || ticketData.isEventCompleted;
+  const isCancelled = status === 'cancelled';
+  const isCheckedIn = status === 'checked_in' || status === 'already_used' || !!checkedInAt;
 
-  // Real ticket status from database and event lifecycle
-  const effectiveStatus: 'valid' | 'used' | 'expired' = computedActualStatus;
+  const effectiveStatus = isCancelled
+    ? 'cancelled'
+    : isEventCompleted
+    ? isCheckedIn
+      ? 'completed_attended'
+      : ticketData.noShow || status === 'expired'
+      ? 'completed_noshow'
+      : 'completed'
+    : isCheckedIn
+    ? 'used'
+    : 'valid';
 
   const startDate = event ? new Date(event.startsAt) : new Date();
   const formattedDate = startDate.toLocaleDateString('id-ID', {
@@ -129,6 +134,8 @@ export const TicketDetailPage: React.FC<TicketDetailPageProps> = ({
             ? 'border-emerald-300 ring-2 ring-emerald-100'
             : effectiveStatus === 'used'
             ? 'border-amber-300 ring-2 ring-amber-100'
+            : isEventCompleted
+            ? 'border-slate-300 ring-2 ring-slate-100'
             : 'border-rose-300 ring-2 ring-rose-100'
         }`}
       >
@@ -139,6 +146,8 @@ export const TicketDetailPage: React.FC<TicketDetailPageProps> = ({
               ? 'bg-slate-900 border-b-4 border-emerald-500'
               : effectiveStatus === 'used'
               ? 'bg-slate-900 border-b-4 border-amber-500'
+              : isEventCompleted
+              ? 'bg-slate-900 border-b-4 border-slate-500'
               : 'bg-slate-900 border-b-4 border-rose-500'
           }`}
         >
@@ -161,35 +170,66 @@ export const TicketDetailPage: React.FC<TicketDetailPageProps> = ({
 
         {/* Unique Firestore Ticket QR Code Component */}
         <div className="p-6 bg-slate-50/50 flex flex-col items-center relative">
-          <TicketFirestoreQRCode
-            ticketId={ticketData.id || ticketId}
-            ticketNumber={ticketNumber}
-            eventId={event?.id}
-            eventTitle={event?.title}
-            attendeeName={registration?.fullName}
-            status={effectiveStatus}
-            checkedInAt={checkedInAt}
-            rawToken={rawToken}
-            size={220}
-          />
+          <div className="relative">
+            <TicketFirestoreQRCode
+              ticketId={ticketData.id || ticketId}
+              ticketNumber={ticketNumber}
+              eventId={event?.id}
+              eventTitle={event?.title}
+              attendeeName={registration?.fullName}
+              status={isEventCompleted || isCancelled ? 'expired' : isCheckedIn ? 'used' : 'valid'}
+              checkedInAt={checkedInAt}
+              rawToken={rawToken}
+              size={220}
+            />
+
+            {/* If event is finished, overlay QR code so it cannot be scanned */}
+            {isEventCompleted && (
+              <div className="absolute inset-0 bg-slate-950/85 backdrop-blur-[2px] rounded-2xl flex flex-col items-center justify-center p-4 text-center text-white border-2 border-slate-700">
+                <Clock className="w-10 h-10 text-amber-400 mb-2" />
+                <p className="font-black text-sm uppercase tracking-wide">Acara Selesai</p>
+                <p className="text-[11px] text-slate-300 max-w-[180px] mt-1 leading-tight">
+                  Tiket ditutup dan tidak dapat digunakan untuk check-in.
+                </p>
+              </div>
+            )}
+
+            {/* If ticket was cancelled, overlay QR code */}
+            {isCancelled && (
+              <div className="absolute inset-0 bg-slate-950/85 backdrop-blur-[2px] rounded-2xl flex flex-col items-center justify-center p-4 text-center text-white border-2 border-rose-700">
+                <AlertTriangle className="w-10 h-10 text-rose-400 mb-2" />
+                <p className="font-black text-sm uppercase tracking-wide">Tiket Dibatalkan</p>
+                <p className="text-[11px] text-slate-300 max-w-[180px] mt-1 leading-tight">
+                  Tiket ini telah dibatalkan oleh pengguna.
+                </p>
+              </div>
+            )}
+          </div>
 
           {/* Contextual Guidance Notice */}
           <div className="mt-3 text-center">
             {effectiveStatus === 'valid' && (
               <p className="text-xs text-emerald-800 font-semibold max-w-xs bg-emerald-50 px-3 py-1.5 rounded-xl border border-emerald-200">
-                ✓ Tiket Siap Digunakan. Tunjukkan kode QR kepada petugas di pintu gerbang masuk.
+                Tiket Siap Digunakan. Tunjukkan kode QR kepada petugas di pintu gerbang masuk.
               </p>
             )}
 
             {effectiveStatus === 'used' && (
               <p className="text-xs text-amber-900 font-semibold max-w-xs bg-amber-50 px-3 py-1.5 rounded-xl border border-amber-200">
-                ⚠ Tiket ini telah diverifikasi masuk sebelumnya. Tidak dapat digunakan kembali.
+                Tiket ini telah diverifikasi masuk sebelumnya. Tidak dapat digunakan kembali.
               </p>
             )}
 
-            {effectiveStatus === 'expired' && (
+            {isEventCompleted && (
+              <p className="text-xs text-slate-700 font-semibold max-w-xs bg-slate-200/80 px-3 py-1.5 rounded-xl border border-slate-300">
+                Acara telah selesai. Tiket ini tetap tersimpan sebagai arsip dan tidak dapat di-scan lagi.
+              </p>
+            )}
+
+            {isCancelled && (
               <p className="text-xs text-rose-800 font-semibold max-w-xs bg-rose-50 px-3 py-1.5 rounded-xl border border-rose-200">
-                ✕ Masa berlaku tiket telah habis. Acara ini telah selesai dilaksanakan.
+                Tiket telah dibatalkan.
+                {ticketData.cancellationPenalty ? ` Penalti credit score: -${ticketData.cancellationPenalty} poin.` : ''}
               </p>
             )}
           </div>
@@ -252,8 +292,8 @@ export const TicketDetailPage: React.FC<TicketDetailPageProps> = ({
             </div>
           )}
 
-          {/* Expired Record notice */}
-          {effectiveStatus === 'expired' && (
+          {/* Expired / Completed Record notice */}
+          {isEventCompleted && (
             <div className="p-3 bg-rose-50 rounded-xl border border-rose-200 text-rose-900 text-xs space-y-1">
               <span className="font-bold flex items-center gap-1">
                 <Clock className="w-3.5 h-3.5 text-rose-600" />

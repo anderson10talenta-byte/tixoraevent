@@ -66,6 +66,7 @@ export default function App() {
             avatarUrl:
               'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80',
             isSuperAdmin: isSuper,
+            creditScore: 10,
             createdAt: savedCreatedAt,
             organizerStatus: isSuper ? 'approved' : 'not_applied',
           };
@@ -81,6 +82,7 @@ export default function App() {
             avatarUrl:
               'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80',
             isSuperAdmin: true,
+            creditScore: 10,
             createdAt: '2026-10-01T00:00:00.000Z',
             organizerStatus: 'approved',
           };

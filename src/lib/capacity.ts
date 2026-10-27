@@ -28,8 +28,7 @@ export function validateCapacity(
 
 /**
  * Monetary calculations in minor units (IDR).
- * Calculates subtotal, administrative fees (Rp 5.000 for paid tickets, Rp 0 for free tickets),
- * and grand total.
+ * Calculates subtotal and grand total. Zero tax, zero administrative fees (0%).
  */
 export function calculateOrderPricing(
   items: { unitPriceMinor: number; quantity: number }[]
@@ -43,10 +42,10 @@ export function calculateOrderPricing(
     return sum + item.unitPriceMinor * item.quantity;
   }, 0);
 
-  // Administrative service fee: IDR 5,000 for paid orders, 0 for free orders
+  // Zero tax & zero platform fees: pure ticket price only
   const isFree = subtotalMinor === 0;
-  const feesMinor = isFree ? 0 : 5000;
-  const totalMinor = subtotalMinor + feesMinor;
+  const feesMinor = 0;
+  const totalMinor = subtotalMinor;
 
   return {
     subtotalMinor,

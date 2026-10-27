@@ -112,6 +112,7 @@ export async function syncUserProfile(fbUser: FirebaseUser): Promise<Profile> {
         avatarUrl: fbUser.photoURL || data.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80',
         phone: fbUser.phoneNumber || data.phone || '+6281234567890',
         isSuperAdmin: isSuperAdmin || !!data.isSuperAdmin,
+        creditScore: data.creditScore ?? 10,
         createdAt: data.createdAt || new Date().toISOString(),
       };
       // Keep admin status synced
@@ -132,6 +133,7 @@ export async function syncUserProfile(fbUser: FirebaseUser): Promise<Profile> {
     avatarUrl: fbUser.photoURL || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80',
     phone: fbUser.phoneNumber || '+6281234567890',
     isSuperAdmin,
+    creditScore: 10,
     createdAt: new Date().toISOString(),
   };
 

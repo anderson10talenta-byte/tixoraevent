@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   ArrowLeft,
   Plus,
@@ -13,9 +13,11 @@ import {
   CheckCircle2,
   RefreshCw,
   FileImage,
+  Tag,
 } from 'lucide-react';
-import type { Profile } from '../lib/types';
+import type { Profile, EventCategory } from '../lib/types';
 import { createEventInFirestore } from '../lib/firestoreService';
+import { DEFAULT_CATEGORIES } from '../lib/categoryIcons';
 
 interface CreateEventPageProps {
   currentProfile: Profile | null;
@@ -30,9 +32,22 @@ export const CreateEventPage: React.FC<CreateEventPageProps> = ({
 }) => {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [category, setCategory] = useState<'music' | 'technology' | 'business' | 'food' | 'art' | 'community'>('music');
+  const [categoriesList, setCategoriesList] = useState<EventCategory[]>(DEFAULT_CATEGORIES);
+  const [category, setCategory] = useState<string>('music');
   const [venueName, setVenueName] = useState('');
   const [venueAddress, setVenueAddress] = useState('');
+
+  useEffect(() => {
+    fetch('/api/categories')
+      .then((res) => (res.ok ? res.json() : []))
+      .then((data) => {
+        if (data && data.length > 0) {
+          setCategoriesList(data);
+          if (!category) setCategory(data[0].id);
+        }
+      })
+      .catch((err) => console.error('Failed to load categories:', err));
+  }, []);
   
   // Cover Photo (Drag & Drop / Import up to 50MB)
   const [coverImageUrl, setCoverImageUrl] = useState<string>('');
@@ -229,6 +244,8 @@ export const CreateEventPage: React.FC<CreateEventPageProps> = ({
         bannerUrl: coverImageUrl,
         startsAt: startsDate,
         endsAt: endsDate,
+        startDate: startsDate,
+        endDate: endsDate,
         salesStartsAt: salesStartsDate,
         salesEndsAt: salesEndsDate,
         ticketTypes,
@@ -295,7 +312,7 @@ export const CreateEventPage: React.FC<CreateEventPageProps> = ({
             <Ticket className="w-8 h-8 text-indigo-700" />
           </div>
           <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
-            Verifikasi Penyelenggara Diperlukan 🛡️
+            Verifikasi Penyelenggara Diperlukan
           </h2>
           <p className="text-xs sm:text-sm font-bold text-slate-700 leading-relaxed max-w-md mx-auto">
             Sesuai standar operasional resmi Tixora, pengguna yang baru mendaftar wajib melengkapi data identitas (Scan KTP & Rekening Bank Pencairan) dan disetujui oleh Super Admin sebelum dapat mempublikasikan event.
@@ -372,15 +389,14 @@ export const CreateEventPage: React.FC<CreateEventPageProps> = ({
                 <label className="block text-xs font-black text-slate-800 mb-1">Kategori Acara *</label>
                 <select
                   value={category}
-                  onChange={(e) => setCategory(e.target.value as any)}
+                  onChange={(e) => setCategory(e.target.value)}
                   className="w-full px-4 py-2.5 text-xs sm:text-sm font-bold rounded-xl border-2 border-slate-300 bg-white focus:border-indigo-600 focus:outline-none"
                 >
-                  <option value="music">🎵 Musik & Konser</option>
-                  <option value="technology">🤖 Teknologi & Konferensi</option>
-                  <option value="business">💼 Bisnis & Seminar</option>
-                  <option value="food">🍔 Kuliner & F&B</option>
-                  <option value="art">🎨 Seni & Budaya Kreatif</option>
-                  <option value="community">🤝 Komunitas & Workshop</option>
+                  {categoriesList.map((cat) => (
+                    <option key={cat.id} value={cat.id}>
+                      {cat.name}
+                    </option>
+                  ))}
                 </select>
               </div>
 
@@ -695,7 +711,7 @@ export const CreateEventPage: React.FC<CreateEventPageProps> = ({
                   <span>Menyimpan Event...</span>
                 </div>
               ) : (
-                <span>Publikasikan Event Sekarang 🚀</span>
+                <span>Publikasikan Event Sekarang</span>
               )}
             </button>
           </div>

@@ -9,7 +9,7 @@ export type OrderStatus =
   | 'cancelled'
   | 'expired'
   | 'refunded';
-export type TicketStatus = 'pending' | 'valid' | 'cancelled' | 'checked_in' | 'refunded';
+export type TicketStatus = 'pending' | 'valid' | 'cancelled' | 'checked_in' | 'expired' | 'completed' | 'refunded';
 export type PaymentStatus = 'pending' | 'paid' | 'failed' | 'expired' | 'refunded';
 export type CheckInResultType = 
   | 'success' 
@@ -52,9 +52,31 @@ export interface Profile {
   phone?: string;
   avatarUrl?: string;
   isSuperAdmin: boolean;
+  creditScore?: number; // 0 to 10 points (default 10)
   createdAt: string;
   organizerStatus?: OrganizerVerificationStatus;
   organizerApplication?: OrganizerApplication;
+}
+
+export interface EventCategory {
+  id: string;
+  name: string;
+  iconName: string;
+  description?: string;
+  createdAt: string;
+}
+
+export interface CreditScoreLog {
+  id: string;
+  userId: string;
+  ticketId?: string;
+  eventId?: string;
+  eventTitle?: string;
+  change: number; // e.g. -3, -2, -1, 0
+  currentScore: number;
+  type: 'cancel_h1' | 'cancel_h3' | 'cancel_h5' | 'cancel_early' | 'no_show' | 'admin_adjustment';
+  reason: string;
+  timestamp: string;
 }
 
 export interface Organization {
@@ -85,7 +107,7 @@ export interface Event {
   title: string;
   slug: string;
   description: string;
-  category: 'music' | 'technology' | 'business' | 'food' | 'art' | 'community';
+  category: string;
   coverImageUrl?: string;
   venueName: string;
   venueAddress: string;
@@ -95,6 +117,7 @@ export interface Event {
   salesStartsAt: string;
   salesEndsAt: string;
   status: EventStatus;
+  isCompleted?: boolean;
   createdBy?: string;
   createdAt: string;
   updatedAt: string;
@@ -177,6 +200,10 @@ export interface Ticket {
   issuedAt: string;
   checkedInAt?: string;
   checkedInBy?: string;
+  cancelledAt?: string;
+  cancellationPenalty?: number;
+  noShow?: boolean;
+  completedAt?: string;
   createdAt: string;
   // Raw token is NEVER stored in database, only temporarily provided to legitimate buyer or during gate verification
   rawToken?: string;

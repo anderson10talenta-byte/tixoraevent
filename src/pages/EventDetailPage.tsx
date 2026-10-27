@@ -49,6 +49,8 @@ export const EventDetailPage: React.FC<EventDetailPageProps> = ({
     onProceedToCheckout(event.id, selectedTicketTypeId, quantity);
   };
 
+  const isEventFinished = (event as any).isCompleted || (event as any).status === 'completed' || (event.endsAt && new Date(event.endsAt).getTime() < Date.now());
+
   return (
     <div className="max-w-5xl mx-auto space-y-8 pb-16">
       {/* Back button */}
@@ -77,6 +79,11 @@ export const EventDetailPage: React.FC<EventDetailPageProps> = ({
               <Building2 className="w-3.5 h-3.5 text-indigo-400" />
               {event.organizationName || 'Tixora Organizer'}
             </span>
+            {isEventFinished && (
+              <span className="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-slate-700 text-amber-300 border border-amber-400">
+                Selesai
+              </span>
+            )}
           </div>
           <h1 className="text-2xl sm:text-4xl font-extrabold tracking-tight text-white leading-tight">
             {event.title}
@@ -137,120 +144,169 @@ export const EventDetailPage: React.FC<EventDetailPageProps> = ({
         </div>
 
         {/* Right Column: Ticket Selection Box */}
-        <div className="lg:col-span-1">
-          <div className="sticky top-24 p-6 bg-white rounded-3xl border border-slate-200 shadow-lg space-y-6">
-            <div className="flex items-center justify-between pb-4 border-b border-slate-100">
-              <h3 className="font-extrabold text-slate-900 text-lg">Pilih Kategori Tiket</h3>
-              <Ticket className="w-5 h-5 text-indigo-600" />
+        <div className="lg:col-span-1" id="ticket-selection">
+          <div className="sticky top-24 p-5 sm:p-6 bg-white rounded-3xl border-2 sm:border-3 border-slate-900 shadow-[4px_4px_0px_0px_#0f172a] sm:shadow-[6px_6px_0px_0px_#0f172a] space-y-6">
+            <div className="flex items-center justify-between pb-4 border-b-2 border-slate-900">
+              <div>
+                <span className="text-[10px] font-black uppercase text-indigo-600 tracking-wider block">Pemesanan</span>
+                <h3 className="font-black text-slate-900 text-lg">Pilih Kategori Tiket</h3>
+              </div>
+              <span className="p-2 bg-yellow-300 rounded-xl border-2 border-slate-900">
+                <Ticket className="w-5 h-5 text-slate-900" />
+              </span>
             </div>
 
-            {/* Ticket Options */}
-            <div className="space-y-3">
-              {event.ticketTypes && event.ticketTypes.length > 0 ? (
-                event.ticketTypes.map((tt) => {
-                  const isSelected = selectedTicketTypeId === tt.id;
-                  const remaining = Math.max(0, tt.capacity - (tt.soldCount + tt.reservedCount));
-                  const isSoldOut = remaining <= 0;
+            {/* If event is finished, block ticket purchasing */}
+            {isEventFinished ? (
+              <div className="p-4 bg-amber-50 rounded-2xl border-2 border-slate-900 text-center space-y-2">
+                <Clock className="w-8 h-8 text-amber-700 mx-auto" />
+                <p className="font-black text-slate-900 text-sm">Acara Telah Selesai</p>
+                <p className="text-xs text-slate-600 font-bold">
+                  Event ini sudah berakhir sehingga tiket tidak dapat dipesan atau dibeli lagi.
+                </p>
+              </div>
+            ) : (
+              <>
+                {/* Ticket Options */}
+                <div className="space-y-3">
+                  {event.ticketTypes && event.ticketTypes.length > 0 ? (
+                    event.ticketTypes.map((tt, idx) => {
+                      const isSelected = selectedTicketTypeId === tt.id;
+                      const remaining = Math.max(0, tt.capacity - (tt.soldCount + tt.reservedCount));
+                      const isSoldOut = remaining <= 0;
 
-                  return (
-                    <div
-                      key={tt.id}
-                      onClick={() => !isSoldOut && setSelectedTicketTypeId(tt.id)}
-                      className={`p-4 rounded-2xl border-2 transition cursor-pointer ${
-                        isSelected
-                          ? 'border-indigo-600 bg-indigo-50/50'
-                          : isSoldOut
-                          ? 'border-slate-200 bg-slate-100 opacity-60 cursor-not-allowed'
-                          : 'border-slate-200 hover:border-slate-300 bg-white'
-                      }`}
-                    >
-                      <div className="flex items-start justify-between">
-                        <div>
-                          <p className="font-bold text-slate-900 text-sm">{tt.name}</p>
-                          {tt.description && (
-                            <p className="text-xs text-slate-500 mt-0.5">{tt.description}</p>
-                          )}
+                      return (
+                        <div
+                          key={tt.id || `ticket-type-${tt.name || idx}-${idx}`}
+                          onClick={() => !isSoldOut && setSelectedTicketTypeId(tt.id)}
+                          className={`p-4 rounded-2xl border-2.5 transition cursor-pointer ${
+                            isSelected
+                              ? 'border-slate-900 bg-yellow-50 shadow-[3px_3px_0px_0px_#0f172a]'
+                              : isSoldOut
+                              ? 'border-slate-200 bg-slate-100 opacity-60 cursor-not-allowed'
+                              : 'border-slate-300 hover:border-slate-900 bg-white'
+                          }`}
+                        >
+                          <div className="flex items-start justify-between">
+                            <div>
+                              <p className="font-black text-slate-900 text-sm">{tt.name}</p>
+                              {tt.description && (
+                                <p className="text-xs font-medium text-slate-600 mt-0.5">{tt.description}</p>
+                              )}
+                            </div>
+                            <div className="text-right">
+                              <p className="font-black text-indigo-700 text-sm sm:text-base">
+                                {tt.priceMinor === 0 ? 'Gratis' : formatCurrencyIDR(tt.priceMinor)}
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="mt-3 flex items-center justify-between text-xs font-bold text-slate-600 pt-2 border-t border-slate-200">
+                            <span className="flex items-center gap-1">
+                              <Users className="w-3.5 h-3.5 text-indigo-600" />
+                              <span>Sisa: {remaining} tiket</span>
+                            </span>
+                            {isSoldOut ? (
+                              <span className="text-rose-600 font-black">Habis (Sold Out)</span>
+                            ) : (
+                              <span className="text-slate-800">Maks. {tt.maxPerOrder} / order</span>
+                            )}
+                          </div>
                         </div>
-                        <div className="text-right">
-                          <p className="font-extrabold text-slate-900 text-sm">
-                            {tt.priceMinor === 0 ? 'Gratis' : formatCurrencyIDR(tt.priceMinor)}
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="mt-3 flex items-center justify-between text-xs text-slate-500 pt-2 border-t border-slate-100">
-                        <span className="flex items-center gap-1">
-                          <Users className="w-3.5 h-3.5" />
-                          <span>Tersedia: {remaining} tiket</span>
-                        </span>
-                        {isSoldOut ? (
-                          <span className="text-rose-600 font-bold">Habis (Sold Out)</span>
-                        ) : (
-                          <span className="text-indigo-600 font-medium">Maks. {tt.maxPerOrder} / order</span>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })
-              ) : (
-                <p className="text-xs text-slate-500">Tidak ada kategori tiket yang tersedia saat ini.</p>
-              )}
-            </div>
-
-            {/* Quantity Selector */}
-            {selectedTicket && (
-              <div className="pt-2">
-                <label className="text-xs font-semibold text-slate-700 block mb-1.5">Jumlah Tiket</label>
-                <div className="flex items-center justify-between bg-slate-100 p-1.5 rounded-xl border border-slate-200">
-                  <button
-                    type="button"
-                    onClick={() => setQuantity(Math.max(1, quantity - 1))}
-                    disabled={quantity <= 1}
-                    className="w-8 h-8 rounded-lg bg-white shadow-xs font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-40 transition flex items-center justify-center cursor-pointer"
-                  >
-                    -
-                  </button>
-                  <span className="font-bold text-slate-900 text-sm">{quantity}</span>
-                  <button
-                    type="button"
-                    onClick={() => setQuantity(Math.min(selectedTicket.maxPerOrder, quantity + 1))}
-                    disabled={quantity >= selectedTicket.maxPerOrder}
-                    className="w-8 h-8 rounded-lg bg-white shadow-xs font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-40 transition flex items-center justify-center cursor-pointer"
-                  >
-                    +
-                  </button>
+                      );
+                    })
+                  ) : (
+                    <p className="text-xs font-bold text-slate-500">Tidak ada kategori tiket yang tersedia saat ini.</p>
+                  )}
                 </div>
-              </div>
+
+                {/* Quantity Selector */}
+                {selectedTicket && (
+                  <div className="pt-2">
+                    <label className="text-xs font-black text-slate-800 block mb-1.5">Jumlah Tiket</label>
+                    <div className="flex items-center justify-between bg-amber-50 p-2 rounded-xl border-2 border-slate-900">
+                      <button
+                        type="button"
+                        onClick={() => setQuantity(Math.max(1, quantity - 1))}
+                        disabled={quantity <= 1}
+                        className="w-9 h-9 rounded-lg bg-white border-2 border-slate-900 shadow-[1.5px_1.5px_0px_0px_#0f172a] font-black text-slate-900 hover:bg-slate-50 disabled:opacity-40 transition flex items-center justify-center cursor-pointer text-base active:scale-95"
+                      >
+                        -
+                      </button>
+                      <span className="font-black text-slate-900 text-base">{quantity}</span>
+                      <button
+                        type="button"
+                        onClick={() => setQuantity(Math.min(selectedTicket.maxPerOrder, quantity + 1))}
+                        disabled={quantity >= selectedTicket.maxPerOrder}
+                        className="w-9 h-9 rounded-lg bg-white border-2 border-slate-900 shadow-[1.5px_1.5px_0px_0px_#0f172a] font-black text-slate-900 hover:bg-slate-50 disabled:opacity-40 transition flex items-center justify-center cursor-pointer text-base active:scale-95"
+                      >
+                        +
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Total breakdown: 0 TAX, 0 FEES */}
+                <div className="p-4 bg-slate-50 rounded-2xl border-2 border-slate-900 space-y-1.5 text-xs font-bold">
+                  <div className="flex justify-between text-slate-600">
+                    <span>Harga ({quantity} tiket)</span>
+                    <span>{isFree ? 'Gratis' : formatCurrencyIDR(subtotal)}</span>
+                  </div>
+                  <div className="flex justify-between text-emerald-700">
+                    <span>Pajak & Biaya Layanan</span>
+                    <span className="font-black">Rp 0 (Bebas Biaya)</span>
+                  </div>
+                  <div className="pt-2 border-t-2 border-slate-900 flex justify-between font-black text-base text-slate-900">
+                    <span>Total Pembayaran</span>
+                    <span className="text-indigo-700">{isFree ? 'Gratis' : formatCurrencyIDR(subtotal)}</span>
+                  </div>
+                </div>
+
+                {/* Action button */}
+                <button
+                  type="button"
+                  onClick={handleBook}
+                  disabled={!selectedTicketTypeId}
+                  className="cartoon-btn w-full py-3.5 px-4 rounded-2xl font-black text-xs sm:text-sm bg-yellow-300 hover:bg-yellow-400 active:bg-yellow-500 disabled:opacity-50 text-slate-900 shadow-[3px_3px_0px_0px_#0f172a] transition cursor-pointer flex items-center justify-center gap-2"
+                >
+                  <span>{isFree ? 'Daftar Tiket Gratis' : `Lanjut Pembayaran (${formatCurrencyIDR(subtotal)})`}</span>
+                </button>
+              </>
             )}
-
-            {/* Total breakdown */}
-            <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-1.5 text-xs">
-              <div className="flex justify-between text-slate-500">
-                <span>Subtotal ({quantity} tiket)</span>
-                <span>{isFree ? 'Gratis' : formatCurrencyIDR(subtotal)}</span>
-              </div>
-              <div className="flex justify-between text-slate-500">
-                <span>Biaya Layanan</span>
-                <span>{isFree ? 'Rp 0' : 'Rp 5.000'}</span>
-              </div>
-              <div className="pt-2 border-t border-slate-200 flex justify-between font-extrabold text-sm text-slate-900">
-                <span>Total Pembayaran</span>
-                <span>{isFree ? 'Gratis' : formatCurrencyIDR(subtotal + (isFree ? 0 : 5000))}</span>
-              </div>
-            </div>
-
-            {/* Action button */}
-            <button
-              type="button"
-              onClick={handleBook}
-              disabled={!selectedTicketTypeId}
-              className="w-full py-3 px-4 rounded-xl font-bold text-sm bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white shadow-md transition cursor-pointer flex items-center justify-center gap-2"
-            >
-              <span>{isFree ? 'Daftar Tiket Gratis' : 'Lanjut ke Pembayaran'}</span>
-            </button>
           </div>
         </div>
       </div>
+
+      {/* STICKY BOTTOM BAR FOR MOBILE PHONES */}
+      {!isEventFinished && (
+        <div className="md:hidden fixed bottom-14 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t-2.5 border-slate-900 px-4 py-2.5 shadow-[0_-4px_16px_rgba(15,23,42,0.12)]">
+          <div className="max-w-md mx-auto flex items-center justify-between gap-3">
+            <div>
+              <span className="text-[10px] font-black uppercase text-slate-500 block leading-tight">
+                {quantity}x {selectedTicket?.name || 'Tiket'}
+              </span>
+              <span className="text-base font-black text-indigo-700 leading-tight">
+                {isFree ? 'Gratis' : formatCurrencyIDR(subtotal)}
+              </span>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                if (selectedTicketTypeId) {
+                  handleBook();
+                } else {
+                  document.getElementById('ticket-selection')?.scrollIntoView({ behavior: 'smooth' });
+                }
+              }}
+              className="cartoon-btn px-5 py-2.5 bg-yellow-300 hover:bg-yellow-400 active:bg-yellow-500 text-slate-900 font-black text-xs rounded-xl border-2 border-slate-900 shadow-[2px_2px_0px_0px_#0f172a] transition flex items-center gap-1.5"
+            >
+              <span>{isFree ? 'Ambil Tiket' : 'Beli Tiket'}</span>
+              <Ticket className="w-3.5 h-3.5 text-slate-900" />
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

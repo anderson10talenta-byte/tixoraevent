@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
-import { Search, Calendar, MapPin, Building2, Filter, ArrowRight } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Search, Calendar, MapPin, Building2, Filter, ArrowRight, Tag } from 'lucide-react';
 import { EventCard } from '../components/EventCard';
-import type { Event, TicketType } from '../lib/types';
+import type { Event, TicketType, EventCategory } from '../lib/types';
+import { DEFAULT_CATEGORIES, getCategoryIcon } from '../lib/categoryIcons';
 
 interface EventWithDetails extends Event {
   organizationName?: string;
@@ -18,18 +19,27 @@ export const EventsPage: React.FC<EventsPageProps> = ({ events, onSelectEvent })
   const [search, setSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [sortBy, setSortBy] = useState<'date' | 'price'>('date');
+  const [categories, setCategories] = useState<EventCategory[]>(DEFAULT_CATEGORIES);
 
-  const categories = [
-    { id: 'all', label: 'Semua Kategori' },
-    { id: 'music', label: '🎵 Musik & Konser' },
-    { id: 'technology', label: '💻 Teknologi & AI' },
-    { id: 'food', label: '☕ Kuliner Nusantara' },
-    { id: 'business', label: '💼 Bisnis & Karir' },
-    { id: 'art', label: '🎨 Seni & Budaya' },
-    { id: 'community', label: '🤝 Komunitas' },
-  ];
+  useEffect(() => {
+    fetch('/api/categories')
+      .then((res) => (res.ok ? res.json() : []))
+      .then((data) => {
+        if (data && data.length > 0) {
+          setCategories(data);
+        }
+      })
+      .catch((err) => console.error('Failed to load categories:', err));
+  }, []);
 
-  let filtered = events.filter((e) => {
+  // Filter out completed / finished events immediately from public discovery
+  const activeEvents = events.filter((e) => {
+    if (e.isCompleted || (e as any).status === 'completed') return false;
+    if (e.endsAt && new Date(e.endsAt).getTime() < Date.now()) return false;
+    return true;
+  });
+
+  let filtered = activeEvents.filter((e) => {
     const matchesCategory = selectedCategory === 'all' || e.category === selectedCategory;
     const matchesSearch =
       !search.trim() ||
@@ -82,21 +92,37 @@ export const EventsPage: React.FC<EventsPageProps> = ({ events, onSelectEvent })
           </div>
         </div>
 
-        {/* Category Pills */}
+        {/* Category Pills (Clean Lucide Icons, Zero Emojis) */}
         <div className="flex flex-wrap gap-2 pt-2">
-          {categories.map((cat) => (
-            <button
-              key={cat.id}
-              onClick={() => setSelectedCategory(cat.id)}
-              className={`px-3.5 py-1.5 rounded-full text-xs font-semibold transition cursor-pointer ${
-                selectedCategory === cat.id
-                  ? 'bg-indigo-600 text-white shadow-xs'
-                  : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
-              }`}
-            >
-              {cat.label}
-            </button>
-          ))}
+          <button
+            onClick={() => setSelectedCategory('all')}
+            className={`px-3.5 py-1.5 rounded-full text-xs font-semibold transition cursor-pointer flex items-center gap-1.5 ${
+              selectedCategory === 'all'
+                ? 'bg-indigo-600 text-white shadow-xs'
+                : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+            }`}
+          >
+            <Tag className="w-3.5 h-3.5" />
+            <span>Semua Kategori</span>
+          </button>
+          {categories.map((cat) => {
+            const IconComp = getCategoryIcon(cat.iconName);
+            const isSelected = selectedCategory === cat.id;
+            return (
+              <button
+                key={cat.id}
+                onClick={() => setSelectedCategory(cat.id)}
+                className={`px-3.5 py-1.5 rounded-full text-xs font-semibold transition cursor-pointer flex items-center gap-1.5 ${
+                  isSelected
+                    ? 'bg-indigo-600 text-white shadow-xs'
+                    : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+                }`}
+              >
+                <IconComp className="w-3.5 h-3.5" />
+                <span>{cat.name}</span>
+              </button>
+            );
+          })}
         </div>
       </div>
 
